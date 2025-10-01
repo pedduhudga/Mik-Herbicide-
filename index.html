@@ -252,14 +252,16 @@
 
         document.getElementById('logout-btn').addEventListener('click', () => _supabase.auth.signOut());
         
+        // ** THIS IS THE CORRECTED CODE FOR THE SIGN-UP LINK **
         document.getElementById('auth-toggle-link').addEventListener('click', (e) => {
             e.preventDefault();
             isLogin = !isLogin;
             const authTitle = document.getElementById('auth-title');
             const authSubmitBtn = document.getElementById('auth-submit-btn');
-            const authToggleLink = e.target;
+            const authToggleLink = document.getElementById('auth-toggle-link');
             const authErrorDiv = document.getElementById('auth-error');
-            authErrorDiv.classList.add('hidden');
+
+            authErrorDiv.classList.add('hidden'); 
             
             if (isLogin) {
                 authTitle.innerText = 'Login';
@@ -344,4 +346,4 @@
             if(formError) showMessage(formError.message, '#ef4444');
             else formulations = formulationData || [];
 
-            const { data: trialData, error: trialError } = await _supabase.from('trials').select('*').eq('organization_id', userPr
+            const { data: tr
