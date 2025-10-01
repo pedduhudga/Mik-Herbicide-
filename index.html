@@ -26,6 +26,8 @@
         .loading-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(255, 255, 255, 0.7); display: flex; justify-content: center; align-items: center; z-index: 200; }
         .loading-spinner { border: 4px solid rgba(0, 0, 0, 0.1); width: 36px; height: 36px; border-radius: 50%; border-left-color: #3b82f6; animation: spin 1s ease infinite; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.5); display: none; justify-content: center; align-items: center; z-index: 100; }
+        .modal-content { background-color: white; padding: 2rem; border-radius: 1rem; max-width: 900px; width: 90%; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04); position: relative; max-height: 90vh; overflow-y: auto; }
     </style>
 </head>
 <body class="bg-gray-100 min-h-screen p-4">
@@ -70,42 +72,38 @@
 
         <!-- Main Content (Tabs) -->
         <div id="main-content" class="flex-1 overflow-y-auto hidden">
-            <div class="flex space-x-2 border-b-2 border-gray-200 mb-6">
-                <button id="tab-dashboard" class="tab-btn py-2 px-4">Dashboard</button>
+            <div class="flex space-x-2 border-b-2 border-gray-200 mb-6 flex-wrap">
                 <button id="tab-formulations" class="tab-btn py-2 px-4">Formulations</button>
                 <button id="tab-trials" class="tab-btn py-2 px-4">Trials</button>
                 <button id="tab-organization" class="tab-btn py-2 px-4">Organization</button>
             </div>
 
-            <div id="section-dashboard" class="tab-section hidden">
-                <h2 class="text-2xl font-semibold text-gray-800 mb-4">Dashboard</h2>
-                <p>Dashboard content will go here. You can add charts and summaries of your organization's data.</p>
-            </div>
-            <div id="section-formulations" class="tab-section hidden">
-                 <h2 class="text-2xl font-semibold text-gray-800 mb-4">Formulations</h2>
-                 <p>Formulations content will go here.</p>
-            </div>
-            <div id="section-trials" class="tab-section hidden">
-                 <h2 class="text-2xl font-semibold text-gray-800 mb-4">Trials</h2>
-                 <p>Trials content will go here.</p>
+            <!-- Formulations Section -->
+            <div id="section-formulations" class="tab-section">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-2xl font-semibold text-gray-800">My Formulations</h2>
+                    <button id="add-formulation-btn" class="btn-primary">Add New Formulation</button>
+                </div>
+                <div id="formulations-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
             </div>
 
+            <!-- Trials Section -->
+            <div id="section-trials" class="tab-section hidden">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-2xl font-semibold text-gray-800">Trial Data</h2>
+                    <button id="add-trial-btn" class="btn-primary">Log New Trial</button>
+                </div>
+                <div id="trials-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+            </div>
+
+            <!-- Organization Management Section -->
             <div id="section-organization" class="tab-section hidden">
                 <h2 class="text-2xl font-semibold text-gray-800 mb-4">Manage Organization</h2>
                 <div class="card bg-gray-50">
                     <h3 class="text-xl font-bold text-gray-700 mb-2">Organization: <span id="org-name-display" class="text-blue-600"></span></h3>
-                    <div class="mt-6">
-                        <h4 class="font-semibold text-gray-700 mb-2">Invite New Member</h4>
-                        <p class="text-sm text-gray-500 mb-2">This feature requires special permissions on Supabase. For now, new members should sign up and create their own organization.</p>
-                        <!-- 
-                        <div class="flex space-x-2">
-                            <input type="email" id="invite-email-input" placeholder="colleague@example.com" class="flex-grow p-2 rounded-md border-gray-300 shadow-sm border">
-                            <button id="invite-btn" class="btn-primary">Send Invite</button>
-                        </div>
-                        -->
-                    </div>
                     <div class="mt-8">
                         <h4 class="font-semibold text-gray-700 mb-2">Team Members</h4>
+                        <p class="text-sm text-gray-500 mb-2">New members can sign up at the main page and create their own organization.</p>
                         <ul id="members-list" class="space-y-2"></ul>
                     </div>
                 </div>
@@ -114,6 +112,65 @@
     </div>
     
     <div id="message-box" class="message-box hidden"></div>
+    
+    <!-- Formulation Modal -->
+    <div id="formulation-modal" class="modal">
+        <div class="modal-content">
+            <h3 id="modal-title" class="text-2xl font-bold mb-4">Add New Formulation</h3>
+            <form id="formulation-form" class="space-y-4">
+                <input type="hidden" id="formulation-id" />
+                <div>
+                    <label for="formulation-name">Formulation Name</label>
+                    <input type="text" id="formulation-name" required class="w-full p-2 rounded-md border mt-1">
+                </div>
+                <div id="ingredients-container" class="space-y-2"></div>
+                <button type="button" id="add-ingredient-btn" class="btn-secondary">Add Ingredient</button>
+                <div class="flex justify-end space-x-2">
+                    <button type="button" id="cancel-formulation-btn" class="btn-secondary">Cancel</button>
+                    <button type="submit" class="btn-primary">Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Trial Modal -->
+    <div id="trial-modal" class="modal">
+         <div class="modal-content">
+            <h3 class="text-2xl font-bold mb-4">Log New Trial</h3>
+            <form id="trial-form" class="space-y-4">
+                <input type="hidden" id="trial-id" />
+                <div>
+                    <label for="trial-formulation-select">Formulation</label>
+                    <select id="trial-formulation-select" required class="w-full p-2 rounded-md border mt-1"></select>
+                </div>
+                <div>
+                    <label for="dosage">Dosage</label>
+                    <input type="text" id="dosage" required class="w-full p-2 rounded-md border mt-1">
+                </div>
+                <div>
+                    <label for="weeds">Weed Species</label>
+                    <input type="text" id="weeds" required class="w-full p-2 rounded-md border mt-1">
+                </div>
+                <div>
+                    <label for="date">Date</label>
+                    <input type="date" id="date" required class="w-full p-2 rounded-md border mt-1">
+                </div>
+                <div>
+                    <label for="result-percent">Result %</label>
+                    <input type="number" id="result-percent" min="0" max="100" required class="w-full p-2 rounded-md border mt-1">
+                </div>
+                <div>
+                    <label for="trial-photos">Photos</label>
+                    <input type="file" id="trial-photos" multiple accept="image/*" class="w-full p-2 rounded-md border mt-1">
+                </div>
+                <div class="flex justify-end space-x-2">
+                    <button type="button" id="cancel-trial-btn" class="btn-secondary">Cancel</button>
+                    <button type="submit" class="btn-primary">Save Trial</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
 
     <script type="module">
         // --- SUPABASE INITIALIZATION ---
@@ -121,7 +178,6 @@
         const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd1bG9xYm5seGluYmZkYXR4am5wIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTkzMzkyMjEsImV4cCI6MjA3NDkxNTIyMX0.4H_OVnlFjO1Pd3gvHruJeQ4efA8ljiZeQuT321eQS80';
         const { createClient } = supabase;
         const _supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-        window.supabase = _supabase;
 
         // --- DOM ELEMENTS & GLOBAL STATE ---
         const authContainer = document.getElementById('auth-container');
@@ -130,9 +186,13 @@
         const orgSetupContainer = document.getElementById('org-setup-container');
         const loadingOverlay = document.getElementById('loading-overlay');
         const messageBox = document.getElementById('message-box');
+        const formulationModal = document.getElementById('formulation-modal');
+        const trialModal = document.getElementById('trial-modal');
         
         let userProfile = null;
         let isLogin = true;
+        let formulations = [];
+        let trials = [];
 
         // --- AUTH & USER PROFILE MANAGEMENT ---
         _supabase.auth.onAuthStateChange(async (_event, session) => {
@@ -161,12 +221,8 @@
 
         async function fetchUserProfile(userId) {
             const { data, error } = await _supabase.from('profiles').select('*').eq('id', userId).single();
-            if (error) {
-                console.error("Error fetching profile:", error);
-                showMessage("Could not retrieve user profile.", "#ef4444");
-            } else {
-                userProfile = data;
-            }
+            if (error) console.error("Error fetching profile:", error);
+            else userProfile = data;
         }
 
         const authForm = document.getElementById('auth-form');
@@ -184,9 +240,6 @@
                     response = await _supabase.auth.signInWithPassword({ email, password });
                 } else {
                     response = await _supabase.auth.signUp({ email, password });
-                    if (!response.error) {
-                        showMessage('Success! Please check your email for a verification link.', '#3b82f6');
-                    }
                 }
                 if (response.error) throw response.error;
             } catch (error) {
@@ -199,7 +252,6 @@
 
         document.getElementById('logout-btn').addEventListener('click', () => _supabase.auth.signOut());
         
-        // ** THIS IS THE FIXED CODE **
         document.getElementById('auth-toggle-link').addEventListener('click', (e) => {
             e.preventDefault();
             isLogin = !isLogin;
@@ -207,8 +259,7 @@
             const authSubmitBtn = document.getElementById('auth-submit-btn');
             const authToggleLink = e.target;
             const authErrorDiv = document.getElementById('auth-error');
-
-            authErrorDiv.classList.add('hidden'); // Hide any previous errors
+            authErrorDiv.classList.add('hidden');
             
             if (isLogin) {
                 authTitle.innerText = 'Login';
@@ -231,17 +282,13 @@
             }
 
             try {
-                // 1. Create the organization
                 const { data: orgData, error: orgError } = await _supabase.from('organizations').insert({ name: orgName }).select().single();
                 if (orgError) throw orgError;
-
-                // 2. Link the current user to the new organization
                 const { error: profileError } = await _supabase.from('profiles').update({ organization_id: orgData.id }).eq('id', userProfile.id);
                 if (profileError) throw profileError;
                 
                 showMessage("Organization created successfully!", "#10b981");
                 
-                // Refresh UI
                 await fetchUserProfile(userProfile.id);
                 if (userProfile && userProfile.organization_id) {
                     mainContent.classList.remove('hidden');
@@ -259,11 +306,9 @@
         async function loadOrganizationData() {
             if (!userProfile || !userProfile.organization_id) return;
             
-            // Fetch org name
             const { data: org, error: orgError } = await _supabase.from('organizations').select('name').eq('id', userProfile.organization_id).single();
             if (org) document.getElementById('org-name-display').innerText = org.name;
 
-            // Fetch members
             const { data: members, error: membersError } = await _supabase.from('profiles').select('id').eq('organization_id', userProfile.organization_id);
             if(members) {
                  const membersList = document.getElementById('members-list');
@@ -276,7 +321,8 @@
                  });
             }
             
-            document.getElementById('tab-dashboard').click();
+            await loadAllData();
+            document.getElementById('tab-formulations').click();
         }
 
         // --- TABS ---
@@ -290,18 +336,12 @@
             });
         });
 
-        // --- HELPER FUNCTIONS ---
-        const showMessage = (message, color = '#10b981') => {
-            messageBox.textContent = message;
-            messageBox.style.backgroundColor = color;
-            messageBox.classList.remove('hidden');
-            messageBox.classList.add('show');
-            setTimeout(() => {
-                messageBox.classList.remove('show');
-                setTimeout(() => messageBox.classList.add('hidden'), 500);
-            }, 4000);
-        };
-    </script>
-</body>
-</html>
+        // --- CORE APP LOGIC ---
 
+        async function loadAllData() {
+            loadingOverlay.classList.remove('hidden');
+            const { data: formulationData, error: formError } = await _supabase.from('formulations').select('*').eq('organization_id', userProfile.organization_id);
+            if(formError) showMessage(formError.message, '#ef4444');
+            else formulations = formulationData || [];
+
+            const { data: trialData, error: trialError } = await _supabase.from('trials').select('*').eq('organization_id', userPr
