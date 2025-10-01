@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Herbicide Trial Manager - Organization</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pptxgenjs/3.12.0/pptxgen.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.12/cropper.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.12/cropper.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; }
+        .container-app { background-color: #ffffff; border-radius: 1rem; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05); max-width: 1200px; margin: 2rem auto; min-height: 80vh; padding: 2rem; display: flex; flex-direction: column; }
+        .card { border-radius: 0.75rem; background-color: #f9fafb; padding: 1.5rem; margin-top: 1.5rem; box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06); }
+        .btn-primary { background-color: #3b82f6; color: white; padding: 0.75rem 1.5rem; border-radius: 0.5rem; font-weight: 600; transition: background-color 0.2s ease-in-out; cursor: pointer; }
+        .btn-primary:hover { background-color: #2563eb; }
+        .btn-secondary { background-color: #e5e7eb; color: #4b5563; padding: 0.75rem 1.5rem; border-radius: 0.5rem; font-weight: 600; transition: background-color 0.2s ease-in-out; cursor: pointer; }
+        .btn-secondary:hover { background-color: #d1d5db; }
+        .message-box { position: fixed; bottom: 2rem; left: 50%; transform: translateX(-50%); background-color: #10b981; color: white; padding: 1rem 2rem; border-radius: 0.75rem; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); opacity: 0; transition: opacity 0.3s ease-in-out; z-index: 101; pointer-events: none; }
+        .message-box.show { opacity: 1; pointer-events: auto; }
+        .tab-active { background-color: #dbeafe !important; color: #1e40af !important; border-bottom: 2px solid #2563eb !important; }
+        .loading-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(255, 255, 255, 0.7); display: flex; justify-content: center; align-items: center; z-index: 200; }
+        .loading-spinner { border: 4px solid rgba(0, 0, 0, 0.1); width: 36px; height: 36px; border-radius: 50%; border-left-color: #3b82f6; animation: spin 1s ease infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.5); display: none; justify-content: center; align-items: center; z-index: 100; }
+        .modal-content { background-color: white; padding: 2rem; border-radius: 1rem; max-width: 900px; width: 90%; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04); position: relative; max-height: 90vh; overflow-y: auto; }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen p-4">
+    <div id="loading-overlay" class="loading-overlay hidden"><div class="loading-spinner"></div></div>
+
+    <!-- Auth Section -->
+    <div id="auth-container" class="container-app">
+        <div class="max-w-md mx-auto w-full">
+            <h2 id="auth-title" class="text-3xl font-bold text-center text-gray-800 mb-6">Login</h2>
+            <div id="auth-error" class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4 hidden" role="alert"></div>
+            <form id="auth-form" class="space-y-4">
+                <input type="email" id="auth-email" placeholder="Email" required class="w-full p-3 rounded-md border-gray-300 shadow-sm border focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
+                <input type="password" id="auth-password" placeholder="Password" required class="w-full p-3 rounded-md border-gray-300 shadow-sm border focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
+                <button type="submit" id="auth-submit-btn" class="btn-primary w-full py-3">Login</button>
+            </form>
+            <p class="text-center mt-4">
+                <a href="#" id="auth-toggle-link" class="text-blue-600 hover:underline">Need an account? Sign Up</a>
+            </p>
+        </div>
+    </div>
+    
+    <!-- Main App Container -->
+    <div id="app" class="container-app hidden">
+        <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6">
+            <h1 class="text-4xl font-bold text-gray-800">Herbicide Trial Manager</h1>
+            <div class="flex items-center space-x-4">
+                <span id="user-email" class="text-gray-600"></span>
+                <button id="logout-btn" class="btn-secondary">Logout</button>
+            </div>
+        </div>
+
+        <!-- Organization Setup Section -->
+        <div id="org-setup-container" class="text-center p-8 bg-gray-50 rounded-lg hidden">
+            <h2 class="text-2xl font-bold mb-4">Welcome!</h2>
+            <p class="mb-6 text-gray-600">To start collaborating, create an organization for your team.</p>
+            <div class="max-w-sm mx-auto">
+                <input type="text" id="org-name-input" placeholder="Enter Your Organization's Name" class="w-full p-3 rounded-md border-gray-300 shadow-sm border mb-4">
+                <button id="create-org-btn" class="btn-primary w-full py-3">Create Organization</button>
+            </div>
+             <p class="mt-6 text-gray-500 text-sm">If you were invited to an organization, please use the sign-up link from your email.</p>
+        </div>
+
+        <!-- Main Content (Tabs) -->
+        <div id="main-content" class="flex-1 overflow-y-auto hidden">
+            <div class="flex space-x-2 border-b-2 border-gray-200 mb-6 flex-wrap">
+                <button id="tab-formulations" class="tab-btn py-2 px-4">Formulations</button>
+                <button id="tab-trials" class="tab-btn py-2 px-4">Trials</button>
+                <button id="tab-organization" class="tab-btn py-2 px-4">Organization</button>
+            </div>
+
+            <!-- Formulations Section -->
+            <div id="section-formulations" class="tab-section">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-2xl font-semibold text-gray-800">My Formulations</h2>
+                    <button id="add-formulation-btn" class="btn-primary">Add New Formulation</button>
+                </div>
+                <div id="formulations-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+            </div>
+
+            <!-- Trials Section -->
+            <div id="section-trials" class="tab-section hidden">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-2xl font-semibold text-gray-800">Trial Data</h2>
+                    <button id="add-trial-btn" class="btn-primary">Log New Trial</button>
+                </div>
+                <div id="trials-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+            </div>
+
+            <!-- Organization Management Section -->
+            <div id="section-organization" class="tab-section hidden">
+                <h2 class="text-2xl font-semibold text-gray-800 mb-4">Manage Organization</h2>
+                <div class="card bg-gray-50">
+                    <h3 class="text-xl font-bold text-gray-700 mb-2">Organization: <span id="org-name-display" class="text-blue-600"></span></h3>
+                    <div class="mt-8">
+                        <h4 class="font-semibold text-gray-700 mb-2">Team Members</h4>
+                        <p class="text-sm text-gray-500 mb-2">New members can sign up at the main page and create their own organization.</p>
+                        <ul id="members-list" class="space-y-2"></ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div id="message-box" class="message-box hidden"></div>
+    
+    <!-- Formulation Modal -->
+    <div id="formulation-modal" class="modal">
+        <div class="modal-content">
+            <h3 id="modal-title" class="text-2xl font-bold mb-4">Add New Formulation</h3>
+            <form id="formulation-form" class="space-y-4">
+                <input type="hidden" id="formulation-id" />
+                <div>
+                    <label for="formulation-name">Formulation Name</label>
+                    <input type="text" id="formulation-name" required class="w-full p-2 rounded-md border mt-1">
+                </div>
+                <div id="ingredients-container" class="space-y-2"></div>
+                <button type="button" id="add-ingredient-btn" class="btn-secondary">Add Ingredient</button>
+                <div class="flex justify-end space-x-2">
+                    <button type="button" id="cancel-formulation-btn" class="btn-secondary">Cancel</button>
+                    <button type="submit" class="btn-primary">Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Trial Modal -->
+    <div id="trial-modal" class="modal">
+         <div class="modal-content">
+            <h3 class="text-2xl font-bold mb-4">Log New Trial</h3>
+            <form id="trial-form" class="space-y-4">
+                <input type="hidden" id="trial-id" />
+                <div>
+                    <label for="trial-formulation-select">Formulation</label>
+                    <select id="trial-formulation-select" required class="w-full p-2 rounded-md border mt-1"></select>
+                </div>
+                <div>
+                    <label for="dosage">Dosage</label>
+                    <input type="text" id="dosage" required class="w-full p-2 rounded-md border mt-1">
+                </div>
+                <div>
+                    <label for="weeds">Weed Species</label>
+                    <input type="text" id="weeds" required class="w-full p-2 rounded-md border mt-1">
+                </div>
+                <div>
+                    <label for="date">Date</label>
+                    <input type="date" id="date" required class="w-full p-2 rounded-md border mt-1">
+                </div>
+                <div>
+                    <label for="result-percent">Result %</label>
+                    <input type="number" id="result-percent" min="0" max="100" required class="w-full p-2 rounded-md border mt-1">
+                </div>
+                <div>
+                    <label for="trial-photos">Photos</label>
+                    <input type="file" id="trial-photos" multiple accept="image/*" class="w-full p-2 rounded-md border mt-1">
+                </div>
+                <div class="flex justify-end space-x-2">
+                    <button type="button" id="cancel-trial-btn" class="btn-secondary">Cancel</button>
+                    <button type="submit" class="btn-primary">Save Trial</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+
+    <script type="module">
+        // --- SUPABASE INITIALIZATION ---
+        const SUPABASE_URL = 'https://guloqbnlxinbfdatxjnp.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd1bG9xYm5seGluYmZkYXR4am5wIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTkzMzkyMjEsImV4cCI6MjA3NDkxNTIyMX0.4H_OVnlFjO1Pd3gvHruJeQ4efA8ljiZeQuT321eQS80';
+        const { createClient } = supabase;
+        const _supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        // --- DOM ELEMENTS & GLOBAL STATE ---
+        const authContainer = document.getElementById('auth-container');
+        const appContainer = document.getElementById('app');
+        const mainContent = document.getElementById('main-content');
+        const orgSetupContainer = document.getElementById('org-setup-container');
+        const loadingOverlay = document.getElementById('loading-overlay');
+        const messageBox = document.getElementById('message-box');
+        const formulationModal = document.getElementById('formulation-modal');
+        const trialModal = document.getElementById('trial-modal');
+        
+        let userProfile = null;
+        let isLogin = true;
+        let formulations = [];
+        let trials = [];
+
+        // --- AUTH & USER PROFILE MANAGEMENT ---
+        _supabase.auth.onAuthStateChange(async (_event, session) => {
+            loadingOverlay.classList.remove('hidden');
+            if (session && session.user) {
+                await fetchUserProfile(session.user.id);
+                authContainer.classList.add('hidden');
+                appContainer.classList.remove('hidden');
+                document.getElementById('user-email').innerText = session.user.email;
+                
+                if (userProfile && userProfile.organization_id) {
+                    mainContent.classList.remove('hidden');
+                    orgSetupContainer.classList.add('hidden');
+                    await loadOrganizationData();
+                } else {
+                    mainContent.classList.add('hidden');
+                    orgSetupContainer.classList.remove('hidden');
+                }
+            } else {
+                userProfile = null;
+                authContainer.classList.remove('hidden');
+                appContainer.classList.add('hidden');
+            }
+            loadingOverlay.classList.add('hidden');
+        });
+
+        async function fetchUserProfile(userId) {
+            const { data, error } = await _supabase.from('profiles').select('*').eq('id', userId).single();
+            if (error) console.error("Error fetching profile:", error);
+            else userProfile = data;
+        }
+
+        const authForm = document.getElementById('auth-form');
+        authForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            loadingOverlay.classList.remove('hidden');
+            const email = document.getElementById('auth-email').value;
+            const password = document.getElementById('auth-password').value;
+            const authErrorDiv = document.getElementById('auth-error');
+            authErrorDiv.classList.add('hidden');
+
+            try {
+                let response;
+                if (isLogin) {
+                    response = await _supabase.auth.signInWithPassword({ email, password });
+                } else {
+                    response = await _supabase.auth.signUp({ email, password });
+                }
+                if (response.error) throw response.error;
+            } catch (error) {
+                authErrorDiv.innerText = error.message;
+                authErrorDiv.classList.remove('hidden');
+            } finally {
+                loadingOverlay.classList.add('hidden');
+            }
+        });
+
+        document.getElementById('logout-btn').addEventListener('click', () => _supabase.auth.signOut());
+        
+        // ** THIS IS THE CORRECTED CODE FOR THE SIGN-UP LINK **
+        document.getElementById('auth-toggle-link').addEventListener('click', (e) => {
+            e.preventDefault();
+            isLogin = !isLogin;
+            const authTitle = document.getElementById('auth-title');
+            const authSubmitBtn = document.getElementById('auth-submit-btn');
+            const authToggleLink = document.getElementById('auth-toggle-link');
+            const authErrorDiv = document.getElementById('auth-error');
+
+            authErrorDiv.classList.add('hidden'); 
+            
+            if (isLogin) {
+                authTitle.innerText = 'Login';
+                authSubmitBtn.innerText = 'Login';
+                authToggleLink.innerText = 'Need an account? Sign Up';
+            } else {
+                authTitle.innerText = 'Sign Up';
+                authSubmitBtn.innerText = 'Sign Up';
+                authToggleLink.innerText = 'Have an account? Login';
+            }
+        });
+
+        // --- ORGANIZATION MANAGEMENT ---
+        document.getElementById('create-org-btn').addEventListener('click', async () => {
+            loadingOverlay.classList.remove('hidden');
+            const orgName = document.getElementById('org-name-input').value.trim();
+            if (!orgName) {
+                loadingOverlay.classList.add('hidden');
+                return showMessage('Please enter an organization name.', '#ef4444');
+            }
+
+            try {
+                const { data: orgData, error: orgError } = await _supabase.from('organizations').insert({ name: orgName }).select().single();
+                if (orgError) throw orgError;
+                const { error: profileError } = await _supabase.from('profiles').update({ organization_id: orgData.id }).eq('id', userProfile.id);
+                if (profileError) throw profileError;
+                
+                showMessage("Organization created successfully!", "#10b981");
+                
+                await fetchUserProfile(userProfile.id);
+                if (userProfile && userProfile.organization_id) {
+                    mainContent.classList.remove('hidden');
+                    orgSetupContainer.classList.add('hidden');
+                    await loadOrganizationData();
+                }
+
+            } catch (error) {
+                showMessage(error.message, '#ef4444');
+            } finally {
+                loadingOverlay.classList.add('hidden');
+            }
+        });
+        
+        async function loadOrganizationData() {
+            if (!userProfile || !userProfile.organization_id) return;
+            
+            const { data: org, error: orgError } = await _supabase.from('organizations').select('name').eq('id', userProfile.organization_id).single();
+            if (org) document.getElementById('org-name-display').innerText = org.name;
+
+            const { data: members, error: membersError } = await _supabase.from('profiles').select('id').eq('organization_id', userProfile.organization_id);
+            if(members) {
+                 const membersList = document.getElementById('members-list');
+                 membersList.innerHTML = '';
+                 members.forEach(member => {
+                     const li = document.createElement('li');
+                     li.className = "bg-white p-2 rounded-md shadow-sm";
+                     li.textContent = `User ID: ...${member.id.slice(-12)}`;
+                     membersList.appendChild(li);
+                 });
+            }
+            
+            await loadAllData();
+            document.getElementById('tab-formulations').click();
+        }
+
+        // --- TABS ---
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const tabId = btn.id.replace('tab-', '');
+                document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('tab-active'));
+                btn.classList.add('tab-active');
+                document.querySelectorAll('.tab-section').forEach(s => s.classList.add('hidden'));
+                document.getElementById(`section-${tabId}`).classList.remove('hidden');
+            });
+        });
+
+        // --- CORE APP LOGIC ---
+
+        async function loadAllData() {
+            loadingOverlay.classList.remove('hidden');
+            const { data: formulationData, error: formError } = await _supabase.from('formulations').select('*').eq('organization_id', userProfile.organization_id);
+            if(formError) showMessage(formError.message, '#ef4444');
+            else formulations = formulationData || [];
+
+            const { data: tr
