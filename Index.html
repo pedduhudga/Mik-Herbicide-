@@ -172,7 +172,10 @@
     </div>
 
 
-    <script type="module">
+    <script>
+    // ** THIS IS THE NEW, CORRECTED SCRIPT **
+    // The entire script is wrapped to ensure it runs only after the page is fully loaded.
+    window.addEventListener('DOMContentLoaded', () => {
         // --- SUPABASE INITIALIZATION ---
         const SUPABASE_URL = 'https://guloqbnlxinbfdatxjnp.supabase.co';
         const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd1bG9xYm5seGluYmZkYXR4am5wIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTkzMzkyMjEsImV4cCI6MjA3NDkxNTIyMX0.4H_OVnlFjO1Pd3gvHruJeQ4efA8ljiZeQuT321eQS80';
@@ -252,7 +255,6 @@
 
         document.getElementById('logout-btn').addEventListener('click', () => _supabase.auth.signOut());
         
-        // ** THIS IS THE CORRECTED CODE FOR THE SIGN-UP LINK **
         document.getElementById('auth-toggle-link').addEventListener('click', (e) => {
             e.preventDefault();
             isLogin = !isLogin;
@@ -343,7 +345,4 @@
         async function loadAllData() {
             loadingOverlay.classList.remove('hidden');
             const { data: formulationData, error: formError } = await _supabase.from('formulations').select('*').eq('organization_id', userProfile.organization_id);
-            if(formError) showMessage(formError.message, '#ef4444');
-            else formulations = formulationData || [];
-
-            const { data: tr
+            if(formError) showMessage(
