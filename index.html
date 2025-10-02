@@ -77,6 +77,7 @@
 
     <script>
     document.addEventListener('DOMContentLoaded', () => {
+        // --- SETUP ---
         const SUPABASE_URL = 'https://guloqbnlxinbfdatxjnp.supabase.co';
         const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd1bG9xYm5seGluYmZkYXR4am5wIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTkzMzkyMjEsImV4cCI6MjA3NDkxNTIyMX0.4H_OVnlFjO1Pd3gvHruJeQ4efA8ljiZeQuT321eQS80';
         const { createClient } = supabase;
@@ -106,29 +107,23 @@
             if (error && error.code !== 'PGRST116') console.error("Profile fetch error:", error.message);
             state.userProfile = data;
         };
+
         const loadOrganizationData = async () => {
             if (!state.userProfile?.organization_id) return;
             showLoading("Loading data...");
             try {
                 const orgId = state.userProfile.organization_id;
-                const [orgRes, membersRes, formulationsRes, trialsRes] = await Promise.all([
-                    _supabase.from('organizations').select('name').eq('id', orgId).single(),
-                    _supabase.from('profiles').select('id').eq('organization_id', orgId),
-                    _supabase.from('formulations').select('*').eq('organization_id', orgId),
-                    _supabase.from('trials').select('*').eq('organization_id', orgId)
-                ]);
-                if (orgRes.error) throw orgRes.error;
-                UI.app.orgNameDisplay.innerText = orgRes.data.name;
-                if (membersRes.error) throw membersRes.error;
-                renderMembers(membersRes.data);
-                if (formulationsRes.error) throw formulationsRes.error;
-                state.formulations = formulationsRes.data || [];
-                if (trialsRes.error) throw trialsRes.error;
-                state.trials = trialsRes.data || [];
+                const { data, error } = await _supabase.rpc('get_organization_data', { org_id: orgId });
+                if (error) throw error;
+                UI.app.orgNameDisplay.innerText = data.organization_name;
+                state.formulations = data.formulations || [];
+                state.trials = data.trials || [];
                 renderAll();
+                renderMembers(data.members || []);
             } catch (error) { console.error("Data loading error:", error.message); }
             finally { hideLoading(); }
         };
+
         const renderAll = () => { renderFormulations(); renderTrials(); switchTab(state.activeTab); };
         const renderMembers = (members) => { UI.app.membersList.innerHTML = members.map(m => `<li class="bg-white p-2 rounded-md shadow-sm">User ID: ...${m.id.slice(-12)}</li>`).join(''); };
         const renderFormulations = () => {
@@ -164,7 +159,6 @@
             try {
                 const { error } = await _supabase.rpc('create_organization_and_assign_user', { org_name: orgName, user_id: user.id });
                 if (error) throw error;
-                // Re-run the auth state change to refresh everything
                 const { data: { session } } = await _supabase.auth.getSession();
                 await handleAuthStateChange(session);
             } catch (error) { console.error("Org creation error:", error.message); }
@@ -241,7 +235,7 @@
         };
         
         const initializeAppEventListeners = () => {
-            if (mainAppInitialized) return; // Prevent binding multiple times
+            if (mainAppInitialized) return; 
             UI.app.logoutBtn.addEventListener('click', () => _supabase.auth.signOut());
             UI.app.createOrgBtn.addEventListener('click', handleCreateOrg);
             UI.formulation.addBtn.addEventListener('click', () => { UI.formulation.form.reset(); UI.formulation.ingredientsContainer.innerHTML = ''; addIngredientInput(); UI.formulation.modal.style.display = 'flex'; });
@@ -266,24 +260,25 @@
                 if (state.userProfile?.organization_id) {
                     UI.app.mainContent.classList.remove('hidden');
                     UI.app.orgSetup.classList.add('hidden');
-                    initializeAppEventListeners(); // Initialize main app listeners
-                    await loadOrganizationData();
                 } else {
                     UI.app.mainContent.classList.add('hidden');
                     UI.app.orgSetup.classList.remove('hidden');
-                    initializeAppEventListeners(); // Initialize main app listeners
+                }
+                // Key fix: Initialize app listeners AFTER the correct view is shown
+                initializeAppEventListeners(); 
+                if (state.userProfile?.organization_id) {
+                    await loadOrganizationData();
                 }
             } else {
                 state.userProfile = null;
                 UI.auth.container.classList.remove('hidden');
                 UI.app.container.classList.add('hidden');
-                mainAppInitialized = false; // Reset for next login
+                mainAppInitialized = false; 
             }
             hideLoading();
         };
         
         // --- INITIALIZATION ---
-        // Bind auth page listeners immediately, as they are always present on load.
         UI.auth.form.addEventListener('submit', async (e) => {
             e.preventDefault();
             showLoading(state.isLogin ? "Logging in..." : "Signing up...");
@@ -304,7 +299,6 @@
         });
         UI.auth.toggleLink.addEventListener('click', toggleAuthMode);
         
-        // This is the main engine that checks the user's login status.
         _supabase.auth.onAuthStateChange((_event, session) => handleAuthStateChange(session));
     });
     </script>
