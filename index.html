@@ -28,7 +28,6 @@
         <p id="loading-text" class="mt-4 text-gray-700 font-semibold">Loading...</p>
     </div>
 
-    <!-- Auth Section -->
     <div id="auth-container" class="min-h-screen flex items-center justify-center">
         <div class="max-w-md w-full bg-white p-8 rounded-xl shadow-lg">
             <h2 id="auth-title" class="text-3xl font-bold text-center text-gray-800 mb-6">Login</h2>
@@ -44,7 +43,6 @@
         </div>
     </div>
     
-    <!-- Main App Container -->
     <div id="app" class="container-app hidden">
         <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6">
             <h1 class="text-4xl font-bold text-gray-800">Herbicide Trial Manager</h1>
@@ -275,4 +273,5 @@
                 }
                 
                 showLoading("Saving trial data...");
-                const trialData = { formulation_id: UI.trial.select().value, dosage: UI.trial.dosage().value, weeds: UI.trial.weeds().value, result: parseInt(UI.trial.result().value), notes: UI.trial.notes().value, photo_paths: photoPaths, user_id: user.id, organization_id: state.userProfile.organizatio
+                const trialData = { formulation_id: UI.trial.select().value, dosage: UI.trial.dosage().value, weeds: UI.trial.weeds().value, result: parseInt(UI.trial.result().value), notes: UI.trial.notes().value, photo_paths: photoPaths, user_id: user.id, organization_id: state.userProfile.organization_id };
+                const { error } = await _supabase.
