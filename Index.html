@@ -95,95 +95,42 @@
     <div id="trial-modal" class="modal"><div class="modal-content"><h3 class="text-2xl font-bold mb-4">New Trial</h3><form id="trial-form" class="space-y-4"><select id="trial-formulation-select" required class="w-full p-2 border rounded"></select><input type="text" id="dosage" placeholder="Dosage" required class="w-full p-2 border rounded"><input type="text" id="weeds" placeholder="Weed Species" required class="w-full p-2 border rounded"><input type="number" id="result" placeholder="Result (%)" required class="w-full p-2 border rounded"><textarea id="notes" placeholder="Notes" class="w-full p-2 border rounded"></textarea><div><label for="trial-photos">Photos</label><input type="file" id="trial-photos" multiple accept="image/*" class="w-full p-2 border rounded mt-1"></div><div class="flex justify-end space-x-2"><button type="button" id="cancel-trial-btn" class="btn-secondary">Cancel</button><button type="submit" class="btn-primary">Save</button></div></form></div></div>
 
     <script>
-    // This wrapper ensures the script runs only after the entire page is loaded.
-    window.addEventListener('DOMContentLoaded', () => {
+    document.addEventListener('DOMContentLoaded', () => {
         const SUPABASE_URL = 'https://guloqbnlxinbfdatxjnp.supabase.co';
         const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd1bG9xYm5seGluYmZkYXR4am5wIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTkzMzkyMjEsImV4cCI6MjA3NDkxNTIyMX0.4H_OVnlFjO1Pd3gvHruJeQ4efA8ljiZeQuT321eQS80';
         const { createClient } = supabase;
         const _supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-        // DOM Elements
+        // --- DOM Elements ---
         const DOMElements = {
             loadingOverlay: document.getElementById('loading-overlay'),
             loadingText: document.getElementById('loading-text'),
-            auth: {
-                container: document.getElementById('auth-container'),
-                title: document.getElementById('auth-title'),
-                error: document.getElementById('auth-error'),
-                form: document.getElementById('auth-form'),
-                email: document.getElementById('auth-email'),
-                password: document.getElementById('auth-password'),
-                submitBtn: document.getElementById('auth-submit-btn'),
-                toggleLink: document.getElementById('auth-toggle-link')
-            },
-            app: {
-                container: document.getElementById('app'),
-                userEmail: document.getElementById('user-email'),
-                logoutBtn: document.getElementById('logout-btn'),
-                mainContent: document.getElementById('main-content'),
-                orgSetup: document.getElementById('org-setup-container'),
-                orgNameInput: document.getElementById('org-name-input'),
-                createOrgBtn: document.getElementById('create-org-btn'),
-                orgNameDisplay: document.getElementById('org-name-display'),
-                membersList: document.getElementById('members-list'),
-            },
+            auth: { container: document.getElementById('auth-container'), title: document.getElementById('auth-title'), error: document.getElementById('auth-error'), form: document.getElementById('auth-form'), email: document.getElementById('auth-email'), password: document.getElementById('auth-password'), submitBtn: document.getElementById('auth-submit-btn'), toggleLink: document.getElementById('auth-toggle-link') },
+            app: { container: document.getElementById('app'), userEmail: document.getElementById('user-email'), logoutBtn: document.getElementById('logout-btn'), mainContent: document.getElementById('main-content'), orgSetup: document.getElementById('org-setup-container'), orgNameInput: document.getElementById('org-name-input'), createOrgBtn: document.getElementById('create-org-btn'), orgNameDisplay: document.getElementById('org-name-display'), membersList: document.getElementById('members-list') },
             tabs: document.querySelectorAll('.tab-btn'),
             sections: document.querySelectorAll('.tab-section'),
-            formulation: {
-                modal: document.getElementById('formulation-modal'),
-                form: document.getElementById('formulation-form'),
-                name: document.getElementById('formulation-name'),
-                list: document.getElementById('formulations-list'),
-                ingredientsContainer: document.getElementById('ingredients-container'),
-                addBtn: document.getElementById('add-formulation-btn'),
-                addIngredientBtn: document.getElementById('add-ingredient-btn'),
-                cancelBtn: document.getElementById('cancel-formulation-btn'),
-            },
-            trial: {
-                modal: document.getElementById('trial-modal'),
-                form: document.getElementById('trial-form'),
-                list: document.getElementById('trials-list'),
-                select: document.getElementById('trial-formulation-select'),
-                dosage: document.getElementById('dosage'),
-                weeds: document.getElementById('weeds'),
-                result: document.getElementById('result'),
-                notes: document.getElementById('notes'),
-                photos: document.getElementById('trial-photos'),
-                addBtn: document.getElementById('add-trial-btn'),
-                cancelBtn: document.getElementById('cancel-trial-btn'),
-            }
+            formulation: { modal: document.getElementById('formulation-modal'), form: document.getElementById('formulation-form'), name: document.getElementById('formulation-name'), list: document.getElementById('formulations-list'), ingredientsContainer: document.getElementById('ingredients-container'), addBtn: document.getElementById('add-formulation-btn'), addIngredientBtn: document.getElementById('add-ingredient-btn'), cancelBtn: document.getElementById('cancel-formulation-btn') },
+            trial: { modal: document.getElementById('trial-modal'), form: document.getElementById('trial-form'), list: document.getElementById('trials-list'), select: document.getElementById('trial-formulation-select'), dosage: document.getElementById('dosage'), weeds: document.getElementById('weeds'), result: document.getElementById('result'), notes: document.getElementById('notes'), photos: document.getElementById('trial-photos'), addBtn: document.getElementById('add-trial-btn'), cancelBtn: document.getElementById('cancel-trial-btn') }
         };
 
-        // Global State
-        let state = {
-            userProfile: null,
-            isLogin: true,
-            formulations: [],
-            trials: [],
-            activeTab: 'formulations'
-        };
+        // --- Global State ---
+        let state = { userProfile: null, isLogin: true, formulations: [], trials: [], activeTab: 'formulations' };
         let ingredientCounter = 0;
 
-        // --- UTILS ---
-        const showLoading = (text = "Loading...") => {
-            DOMElements.loadingText.textContent = text;
-            DOMElements.loadingOverlay.classList.remove('hidden');
-        };
+        // --- Utils ---
+        const showLoading = (text = "Loading...") => { DOMElements.loadingText.textContent = text; DOMElements.loadingOverlay.classList.remove('hidden'); };
         const hideLoading = () => DOMElements.loadingOverlay.classList.add('hidden');
-        const hideModals = () => {
-            DOMElements.formulation.modal.style.display = 'none';
-            DOMElements.trial.modal.style.display = 'none';
-        };
+        const hideModals = () => { DOMElements.formulation.modal.style.display = 'none'; DOMElements.trial.modal.style.display = 'none'; };
 
-        // --- AUTH & PROFILE ---
+        // --- Auth & Profile ---
         const handleAuthStateChange = async (session) => {
             showLoading();
-            if (session && session.user) {
-                await fetchUserProfile(session.user.id);
+            const user = session ? session.user : null;
+            if (user) {
+                await fetchUserProfile(user.id);
                 DOMElements.auth.container.classList.add('hidden');
                 DOMElements.app.container.classList.remove('hidden');
-                DOMElements.app.userEmail.innerText = session.user.email;
-                
+                DOMElements.app.userEmail.innerText = user.email;
                 if (state.userProfile && state.userProfile.organization_id) {
                     DOMElements.app.mainContent.classList.remove('hidden');
                     DOMElements.app.orgSetup.classList.add('hidden');
@@ -202,17 +149,16 @@
 
         const fetchUserProfile = async (userId) => {
             const { data, error } = await _supabase.from('profiles').select('*').eq('id', userId).single();
-            if (error) console.error("Error fetching profile:", error.message);
-            else state.userProfile = data;
+            if (error && error.code !== 'PGRST116') console.error("Error fetching profile:", error.message);
+            state.userProfile = data;
         };
-
+        
         const handleAuthFormSubmit = async (e) => {
             e.preventDefault();
             showLoading(state.isLogin ? "Logging in..." : "Signing up...");
             const email = DOMElements.auth.email.value;
             const password = DOMElements.auth.password.value;
             DOMElements.auth.error.classList.add('hidden');
-
             try {
                 const { error } = state.isLogin
                     ? await _supabase.auth.signInWithPassword({ email, password })
@@ -235,48 +181,45 @@
             DOMElements.auth.error.classList.add('hidden');
         };
 
-        // --- ORGANIZATION ---
+        // --- Organization ---
         const handleCreateOrg = async () => {
             showLoading("Creating organization...");
             const orgName = DOMElements.app.orgNameInput.value.trim();
-            if (!orgName) return hideLoading();
+            if (!orgName) { hideLoading(); return; }
+            const { data: { user } } = await _supabase.auth.getUser();
             try {
-                const { data: orgData, error: orgError } = await _supabase.from('organizations').insert({ name: orgName }).select().single();
+                const { data: orgData, error: orgError } = await _supabase.from('organizations').insert({ name: orgName, created_by: user.id }).select().single();
                 if (orgError) throw orgError;
-                const { error: profileError } = await _supabase.from('profiles').update({ organization_id: orgData.id }).eq('id', state.userProfile.id);
+                const { error: profileError } = await _supabase.from('profiles').update({ organization_id: orgData.id }).eq('id', user.id);
                 if (profileError) throw profileError;
-                await handleAuthStateChange({ user: _supabase.auth.getUser() });
+                await handleAuthStateChange({ user });
             } catch (error) {
                 console.error("Error creating org:", error.message);
             } finally {
                 hideLoading();
             }
         };
-
-        // --- DATA HANDLING ---
+        
+        // --- Data Handling ---
         const loadOrganizationData = async () => {
             if (!state.userProfile || !state.userProfile.organization_id) return;
             showLoading("Loading organization data...");
             try {
+                const orgId = state.userProfile.organization_id;
                 const [orgRes, membersRes, formulationsRes, trialsRes] = await Promise.all([
-                    _supabase.from('organizations').select('name').eq('id', state.userProfile.organization_id).single(),
-                    _supabase.from('profiles').select('id').eq('organization_id', state.userProfile.organization_id),
-                    _supabase.from('formulations').select('*').eq('organization_id', state.userProfile.organization_id),
-                    _supabase.from('trials').select('*').eq('organization_id', state.userProfile.organization_id)
+                    _supabase.from('organizations').select('name').eq('id', orgId).single(),
+                    _supabase.from('profiles').select('id').eq('organization_id', orgId),
+                    _supabase.from('formulations').select('*').eq('organization_id', orgId),
+                    _supabase.from('trials').select('*').eq('organization_id', orgId)
                 ]);
-
                 if (orgRes.error) throw orgRes.error;
                 DOMElements.app.orgNameDisplay.innerText = orgRes.data.name;
-
                 if (membersRes.error) throw membersRes.error;
                 renderMembers(membersRes.data);
-                
                 if (formulationsRes.error) throw formulationsRes.error;
                 state.formulations = formulationsRes.data || [];
-                
                 if (trialsRes.error) throw trialsRes.error;
                 state.trials = trialsRes.data || [];
-
                 renderAll();
             } catch (error) {
                 console.error("Error loading data:", error.message);
@@ -287,20 +230,16 @@
 
         const uploadFiles = (files) => {
              if (!files || files.length === 0) return Promise.resolve([]);
+             const orgId = state.userProfile.organization_id;
              const uploadPromises = Array.from(files).map(file => {
-                 const filePath = `${state.userProfile.organization_id}/${Date.now()}_${file.name}`;
+                 const filePath = `${orgId}/${Date.now()}_${file.name}`;
                  return _supabase.storage.from('trial_photos').upload(filePath, file);
              });
              return Promise.all(uploadPromises);
         };
 
-        // --- UI RENDERING ---
-        const renderAll = () => {
-            renderFormulations();
-            renderTrials();
-            switchTab(state.activeTab);
-        };
-
+        // --- UI Rendering ---
+        const renderAll = () => { renderFormulations(); renderTrials(); switchTab(state.activeTab); };
         const renderMembers = (members) => {
             DOMElements.app.membersList.innerHTML = '';
             members.forEach(member => {
@@ -310,9 +249,8 @@
                 DOMElements.app.membersList.appendChild(li);
             });
         };
-
         const renderFormulations = () => {
-           and   DOMElements.formulation.list.innerHTML = '';
+            DOMElements.formulation.list.innerHTML = '';
             DOMElements.trial.select.innerHTML = '<option value="">Select Formulation</option>';
             state.formulations.forEach(f => {
                 const ingredients = (JSON.parse(f.ingredients || '[]')).map(i => `${i.name} ${i.qty}${i.unit}`).join(', ');
@@ -320,15 +258,27 @@
                 card.className = 'card';
                 card.innerHTML = `<h3 class="font-bold text-lg">${f.name}</h3><p class="text-sm text-gray-600 truncate">${ingredients || 'No ingredients'}</p>`;
                 DOMElements.formulation.list.appendChild(card);
-                
                 const option = document.createElement('option');
                 option.value = f.id;
                 option.textContent = f.name;
                 DOMElements.trial.select.appendChild(option);
             });
         };
-
         const renderTrials = () => {
             DOMElements.trial.list.innerHTML = '';
             state.trials.forEach(t => {
-                cons
+                const formulation = state.formulations.find(f => f.id === t.formulation_id);
+                const card = document.createElement('div');
+                card.className = 'card';
+                card.innerHTML = `<h3 class="font-bold text-lg">${formulation ? formulation.name : 'Unknown'}</h3><p>vs <span class="italic">${t.weeds}</span></p><p class="text-xl font-semibold">${t.result}% Effective</p>`;
+                DOMElements.trial.list.appendChild(card);
+            });
+        };
+
+        // --- Form Submissions ---
+        const handleFormulationSubmit = async (e) => {
+            e.preventDefault();
+            showLoading("Saving formulation...");
+            const ingredients = [];
+            document.querySelectorAll('#ingredients-container .flex').forEach(row => {
+                const name = row.querySelector('.ingredi cons
