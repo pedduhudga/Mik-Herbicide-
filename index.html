@@ -3,15 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Herbicide Trial Manager</title>
+    <title>Herbicide Trial Manager - Advanced</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
         body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; }
-        .container-app { background-color: #ffffff; border-radius: 1rem; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05); max-width: 1200px; margin: 2rem auto; min-height: 80vh; padding: 2rem; display: flex; flex-direction: column; }
-        .card { border-radius: 0.75rem; background-color: #f9fafb; padding: 1.5rem; margin-top: 1.5rem; box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06); }
-        .btn-primary { background-color: #3b82f6; color: white; padding: 0.75rem 1.5rem; border-radius: 0.5rem; font-weight: 600; cursor: pointer; }
+        .container-app { background-color: #ffffff; border-radius: 1rem; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05); max-width: 1400px; margin: 2rem auto; min-height: 85vh; padding: 2rem; display: flex; flex-direction: column; }
+        .card { border-radius: 0.75rem; background-color: #f9fafb; padding: 1.5rem; box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06); transition: transform 0.2s; }
+        .card:hover { transform: translateY(-5px); }
+        .btn-primary { background-color: #3b82f6; color: white; padding: 0.75rem 1.5rem; border-radius: 0.5rem; font-weight: 600; cursor: pointer; transition: background-color 0.2s; }
         .btn-primary:hover { background-color: #2563eb; }
         .btn-secondary { background-color: #e5e7eb; color: #4b5563; padding: 0.75rem 1.5rem; border-radius: 0.5rem; font-weight: 600; cursor: pointer; }
         .loading-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(255, 255, 255, 0.8); display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 200; }
@@ -19,83 +20,53 @@
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.5); display: none; justify-content: center; align-items: center; z-index: 100; }
         .modal-content { background-color: white; padding: 2rem; border-radius: 1rem; max-width: 700px; width: 90%; max-height: 90vh; overflow-y: auto; }
-        .tab-active { border-bottom-color: #3b82f6; color: #3b82f6; }
+        .tab-active { border-bottom-color: #3b82f6; color: #3b82f6; font-weight: 600; }
     </style>
 </head>
 <body class="bg-gray-100 min-h-screen">
-    <div id="loading-overlay" class="loading-overlay hidden">
-        <div class="loading-spinner"></div>
-        <p id="loading-text" class="mt-4 text-gray-700 font-semibold">Loading...</p>
-    </div>
+    <div id="loading-overlay" class="loading-overlay hidden"><div class="loading-spinner"></div><p id="loading-text" class="mt-4 text-gray-700 font-semibold">Loading...</p></div>
 
-    <!-- Auth Section -->
-    <div id="auth-container" class="min-h-screen flex items-center justify-center">
-        <div class="max-w-md w-full bg-white p-8 rounded-xl shadow-lg">
-            <h2 id="auth-title" class="text-3xl font-bold text-center text-gray-800 mb-6">Login</h2>
-            <div id="auth-error" class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4 hidden" role="alert"></div>
-            <form id="auth-form" class="space-y-4">
-                <input type="email" id="auth-email" placeholder="Email" required class="w-full p-3 rounded-md border-gray-300 shadow-sm border focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
-                <input type="password" id="auth-password" placeholder="Password" required class="w-full p-3 rounded-md border-gray-300 shadow-sm border focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
-                <button type="submit" id="auth-submit-btn" class="btn-primary w-full py-3">Login</button>
-            </form>
-            <p class="text-center mt-4">
-                <a href="#" id="auth-toggle-link" class="text-blue-600 hover:underline">Need an account? Sign Up</a>
-            </p>
-        </div>
+    <div id="auth-container" class="min-h-screen flex items-center justify-center p-4">
+        <div class="max-w-md w-full bg-white p-8 rounded-xl shadow-lg"><h2 id="auth-title" class="text-3xl font-bold text-center text-gray-800 mb-6">Login</h2><div id="auth-error" class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4 hidden"></div><form id="auth-form" class="space-y-4"><input type="email" id="auth-email" placeholder="Email" required class="w-full p-3 rounded-md border-gray-300 shadow-sm border focus:border-blue-500 focus:ring focus:ring-blue-200"><input type="password" id="auth-password" placeholder="Password" required class="w-full p-3 rounded-md border-gray-300 shadow-sm border focus:border-blue-500 focus:ring focus:ring-blue-200"><button type="submit" id="auth-submit-btn" class="btn-primary w-full py-3">Login</button></form><p class="text-center mt-4"><a href="#" id="auth-toggle-link" class="text-blue-600 hover:underline">Need an account? Sign Up</a></p></div>
     </div>
     
-    <!-- Main App Container -->
     <div id="app" class="container-app hidden">
-        <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6">
-            <h1 class="text-4xl font-bold text-gray-800">Herbicide Trial Manager</h1>
-            <div class="flex items-center space-x-4">
-                <span id="user-email" class="text-gray-600"></span>
-                <button id="logout-btn" class="btn-secondary">Logout</button>
-            </div>
-        </div>
-        <div id="org-setup-container" class="text-center p-8 bg-gray-50 rounded-lg hidden">
-            <h2 class="text-2xl font-bold mb-4">Welcome!</h2>
-            <p class="mb-6 text-gray-600">To start collaborating, create an organization for your team.</p>
-            <div class="max-w-sm mx-auto">
-                <input type="text" id="org-name-input" placeholder="Enter Your Organization's Name" class="w-full p-3 rounded-md border-gray-300 shadow-sm border mb-4">
-                <button id="create-org-btn" class="btn-primary w-full py-3">Create Organization</button>
-            </div>
-        </div>
+        <div class="flex flex-col md:flex-row justify-between items-center mb-6"><h1 class="text-4xl font-bold text-gray-800">Herbicide Trial Manager</h1><div class="flex items-center space-x-4 mt-4 md:mt-0"><span id="user-email" class="text-gray-600 font-medium"></span><button id="logout-btn" class="btn-secondary">Logout</button></div></div>
+        <div id="org-setup-container" class="text-center p-8 bg-gray-50 rounded-lg hidden"><h2 class="text-2xl font-bold mb-4">Welcome!</h2><p class="mb-6 text-gray-600">To start collaborating, create an organization for your team.</p><div class="max-w-sm mx-auto"><input type="text" id="org-name-input" placeholder="Enter Your Organization's Name" class="w-full p-3 rounded-md border-gray-300 shadow-sm border mb-4"><button id="create-org-btn" class="btn-primary w-full py-3">Create Organization</button></div></div>
         <div id="main-content" class="flex-1 overflow-y-auto hidden">
-            <div class="flex space-x-4 border-b-2 border-gray-200 mb-6">
-                <button id="tab-formulations" class="tab-btn py-2 px-4 font-semibold text-gray-500 border-b-2 border-transparent">Formulations</button>
-                <button id="tab-trials" class="tab-btn py-2 px-4 font-semibold text-gray-500 border-b-2 border-transparent">Trials</button>
-                <button id="tab-organization" class="tab-btn py-2 px-4 font-semibold text-gray-500 border-b-2 border-transparent">Organization</button>
-            </div>
+            <div class="flex space-x-4 border-b-2 border-gray-200 mb-6"><button id="tab-dashboard" class="tab-btn py-2 px-4 font-semibold text-gray-500 border-b-2 border-transparent">Dashboard</button><button id="tab-formulations" class="tab-btn py-2 px-4 font-semibold text-gray-500 border-b-2 border-transparent">Formulations</button><button id="tab-trials" class="tab-btn py-2 px-4 font-semibold text-gray-500 border-b-2 border-transparent">Trials</button><button id="tab-organization" class="tab-btn py-2 px-4 font-semibold text-gray-500 border-b-2 border-transparent">Organization</button></div>
+            <div id="section-dashboard" class="tab-section hidden"><div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8"><div class="card text-center"><h3 class="text-lg font-semibold text-gray-500">Total Formulations</h3><p id="stats-formulations" class="text-4xl font-bold text-blue-600">0</p></div><div class="card text-center"><h3 class="text-lg font-semibold text-gray-500">Total Trials</h3><p id="stats-trials" class="text-4xl font-bold text-green-600">0</p></div><div class="card text-center"><h3 class="text-lg font-semibold text-gray-500">Avg. Effectiveness</h3><p id="stats-avg-result" class="text-4xl font-bold text-purple-600">0%</p></div></div></div>
             <div id="section-formulations" class="tab-section hidden"><button id="add-formulation-btn" class="btn-primary mb-4">Add New Formulation</button><div id="formulations-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div></div>
             <div id="section-trials" class="tab-section hidden"><button id="add-trial-btn" class="btn-primary mb-4">Add New Trial</button><div id="trials-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div></div>
             <div id="section-organization" class="tab-section hidden"><div class="card bg-gray-50"><h3 class="text-xl font-bold text-gray-700 mb-2">Organization: <span id="org-name-display" class="text-blue-600"></span></h3><div class="mt-8"><h4 class="font-semibold text-gray-700 mb-2">Team Members</h4><ul id="members-list" class="space-y-2"></ul></div></div></div>
         </div>
     </div>
-    <div id="formulation-modal" class="modal"><div class="modal-content"><h3 class="text-2xl font-bold mb-4">New Formulation</h3><form id="formulation-form" class="space-y-4"><input type="text" id="formulation-name" placeholder="Formulation Name" required class="w-full p-2 border rounded"><div id="ingredients-container" class="space-y-2"></div><button type="button" id="add-ingredient-btn" class="btn-secondary">Add Ingredient</button><div class="flex justify-end space-x-2"><button type="button" id="cancel-formulation-btn" class="btn-secondary">Cancel</button><button type="submit" class="btn-primary">Save</button></div></form></div></div>
-    <div id="trial-modal" class="modal"><div class="modal-content"><h3 class="text-2xl font-bold mb-4">New Trial</h3><form id="trial-form" class="space-y-4"><select id="trial-formulation-select" required class="w-full p-2 border rounded"></select><input type="text" id="dosage" placeholder="Dosage" required class="w-full p-2 border rounded"><input type="text" id="weeds" placeholder="Weed Species" required class="w-full p-2 border rounded"><input type="number" id="result" placeholder="Result (%)" required class="w-full p-2 border rounded"><textarea id="notes" placeholder="Notes" class="w-full p-2 border rounded"></textarea><div><label for="trial-photos">Photos</label><input type="file" id="trial-photos" multiple accept="image/*" class="w-full p-2 border rounded mt-1"></div><div class="flex justify-end space-x-2"><button type="button" id="cancel-trial-btn" class="btn-secondary">Cancel</button><button type="submit" class="btn-primary">Save</button></div></form></div></div>
+    <div id="formulation-modal" class="modal"><div class="modal-content"><h3 class="text-2xl font-bold mb-4">New Formulation</h3><form id="formulation-form" class="space-y-4"><input type="text" id="formulation-name" placeholder="Formulation Name" required class="w-full p-2 border rounded"><div id="ingredients-container" class="space-y-2 mt-4"></div><button type="button" id="add-ingredient-btn" class="btn-secondary">Add Ingredient</button><div class="flex justify-end space-x-2 mt-4"><button type="button" id="cancel-formulation-btn" class="btn-secondary">Cancel</button><button type="submit" class="btn-primary">Save</button></div></form></div></div>
+    <div id="trial-modal" class="modal"><div class="modal-content"><h3 class="text-2xl font-bold mb-4">New Trial</h3><form id="trial-form" class="space-y-4"><select id="trial-formulation-select" required class="w-full p-2 border rounded"></select><input type="text" id="dosage" placeholder="Dosage" required class="w-full p-2 border rounded"><input type="text" id="weeds" placeholder="Weed Species" required class="w-full p-2 border rounded"><input type="number" id="result" placeholder="Result (%)" required class="w-full p-2 border rounded"><textarea id="notes" placeholder="Notes" class="w-full p-2 border rounded"></textarea><div><label for="trial-photos" class="font-medium">Photos</label><input type="file" id="trial-photos" multiple accept="image/*" class="w-full p-2 border rounded mt-1"></div><div class="flex justify-end space-x-2"><button type="button" id="cancel-trial-btn" class="btn-secondary">Cancel</button><button type="submit" class="btn-primary">Save</button></div></form></div></div>
 
     <script>
     document.addEventListener('DOMContentLoaded', () => {
-        // --- SETUP ---
         const SUPABASE_URL = 'https://guloqbnlxinbfdatxjnp.supabase.co';
         const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd1bG9xYm5seGluYmZkYXR4am5wIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTkzMzkyMjEsImV4cCI6MjA3NDkxNTIyMX0.4H_OVnlFjO1Pd3gvHruJeQ4efA8ljiZeQuT321eQS80';
         const { createClient } = supabase;
         const _supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-        let state = { userProfile: null, isLogin: true, formulations: [], trials: [], activeTab: 'formulations' };
-        let ingredientCounter = 0;
+        let state = { userProfile: null, isLogin: true, formulations: [], trials: [], activeTab: 'dashboard' };
         let mainAppInitialized = false;
 
-        const UI = {
-            loadingOverlay: document.getElementById('loading-overlay'),
-            loadingText: document.getElementById('loading-text'),
-            auth: { container: document.getElementById('auth-container'), title: document.getElementById('auth-title'), error: document.getElementById('auth-error'), form: document.getElementById('auth-form'), email: document.getElementById('auth-email'), password: document.getElementById('auth-password'), submitBtn: document.getElementById('auth-submit-btn'), toggleLink: document.getElementById('auth-toggle-link') },
-            app: { container: document.getElementById('app'), userEmail: document.getElementById('user-email'), logoutBtn: document.getElementById('logout-btn'), mainContent: document.getElementById('main-content'), orgSetup: document.getElementById('org-setup-container'), orgNameInput: document.getElementById('org-name-input'), createOrgBtn: document.getElementById('create-org-btn'), orgNameDisplay: document.getElementById('org-name-display'), membersList: document.getElementById('members-list') },
-            tabs: document.querySelectorAll('.tab-btn'),
-            sections: document.querySelectorAll('.tab-section'),
-            formulation: { modal: document.getElementById('formulation-modal'), form: document.getElementById('formulation-form'), name: document.getElementById('formulation-name'), list: document.getElementById('formulations-list'), ingredientsContainer: document.getElementById('ingredients-container'), addBtn: document.getElementById('add-formulation-btn'), addIngredientBtn: document.getElementById('add-ingredient-btn'), cancelBtn: document.getElementById('cancel-formulation-btn') },
-            trial: { modal: document.getElementById('trial-modal'), form: document.getElementById('trial-form'), list: document.getElementById('trials-list'), select: document.getElementById('trial-formulation-select'), dosage: document.getElementById('dosage'), weeds: document.getElementById('weeds'), result: document.getElementById('result'), notes: document.getElementById('notes'), photos: document.getElementById('trial-photos'), addBtn: document.getElementById('add-trial-btn'), cancelBtn: document.getElementById('cancel-trial-btn') }
+        // --- UI Element Cache ---
+        // This makes accessing elements faster and more organized.
+        const UI = {};
+        const cacheUI = () => {
+            UI.loadingOverlay = document.getElementById('loading-overlay');
+            UI.loadingText = document.getElementById('loading-text');
+            UI.auth = { container: document.getElementById('auth-container'), title: document.getElementById('auth-title'), error: document.getElementById('auth-error'), form: document.getElementById('auth-form'), submitBtn: document.getElementById('auth-submit-btn'), toggleLink: document.getElementById('auth-toggle-link') };
+            UI.app = { container: document.getElementById('app'), userEmail: document.getElementById('user-email'), logoutBtn: document.getElementById('logout-btn'), mainContent: document.getElementById('main-content'), orgSetup: document.getElementById('org-setup-container'), createOrgBtn: document.getElementById('create-org-btn'), orgNameDisplay: document.getElementById('org-name-display'), membersList: document.getElementById('members-list') };
+            UI.tabs = document.querySelectorAll('.tab-btn');
+            UI.sections = document.querySelectorAll('.tab-section');
+            UI.formulation = { modal: document.getElementById('formulation-modal'), form: document.getElementById('formulation-form'), name: document.getElementById('formulation-name'), list: document.getElementById('formulations-list'), ingredientsContainer: document.getElementById('ingredients-container'), addBtn: document.getElementById('add-formulation-btn'), addIngredientBtn: document.getElementById('add-ingredient-btn'), cancelBtn: document.getElementById('cancel-formulation-btn') };
+            UI.trial = { modal: document.getElementById('trial-modal'), form: document.getElementById('trial-form'), list: document.getElementById('trials-list'), select: document.getElementById('trial-formulation-select'), cancelBtn: document.getElementById('cancel-trial-btn') };
+            UI.stats = { formulations: document.getElementById('stats-formulations'), trials: document.getElementById('stats-trials'), avgResult: document.getElementById('stats-avg-result') };
         };
 
         const showLoading = (text = "Loading...") => { UI.loadingText.textContent = text; UI.loadingOverlay.classList.remove('hidden'); };
@@ -124,7 +95,14 @@
             finally { hideLoading(); }
         };
 
-        const renderAll = () => { renderFormulations(); renderTrials(); switchTab(state.activeTab); };
+        const renderAll = () => { renderFormulations(); renderTrials(); renderDashboard(); switchTab(state.activeTab); };
+        const renderDashboard = () => {
+            UI.stats.formulations.textContent = state.formulations.length;
+            UI.stats.trials.textContent = state.trials.length;
+            const totalResult = state.trials.reduce((sum, trial) => sum + (trial.result || 0), 0);
+            const avgResult = state.trials.length > 0 ? (totalResult / state.trials.length).toFixed(1) : 0;
+            UI.stats.avgResult.textContent = `${avgResult}%`;
+        };
         const renderMembers = (members) => { UI.app.membersList.innerHTML = members.map(m => `<li class="bg-white p-2 rounded-md shadow-sm">User ID: ...${m.id.slice(-12)}</li>`).join(''); };
         const renderFormulations = () => {
             UI.formulation.list.innerHTML = '';
@@ -135,9 +113,7 @@
                 card.className = 'card';
                 card.innerHTML = `<h3 class="font-bold text-lg">${f.name}</h3><p class="text-sm text-gray-600 truncate">${ingredients || 'No ingredients'}</p>`;
                 UI.formulation.list.appendChild(card);
-                const option = document.createElement('option');
-                option.value = f.id;
-                option.textContent = f.name;
+                const option = document.createElement('option'); option.value = f.id; option.textContent = f.name;
                 UI.trial.select.appendChild(option);
             });
         };
@@ -151,10 +127,12 @@
                 UI.trial.list.appendChild(card);
             });
         };
+        
         const handleCreateOrg = async () => {
+            const orgNameInput = document.getElementById('org-name-input');
+            const orgName = orgNameInput.value.trim();
+            if (!orgName) return;
             showLoading("Creating organization...");
-            const orgName = UI.app.orgNameInput.value.trim();
-            if (!orgName) { hideLoading(); return; }
             const { data: { user } } = await _supabase.auth.getUser();
             try {
                 const { error } = await _supabase.rpc('create_organization_and_assign_user', { org_name: orgName, user_id: user.id });
@@ -187,7 +165,7 @@
             const { data: { user } } = await _supabase.auth.getUser();
             showLoading("Uploading files...");
             try {
-                const files = UI.trial.photos.files;
+                const files = document.getElementById('trial-photos').files;
                 let photoPaths = [];
                 if (files.length > 0) {
                     const orgId = state.userProfile.organization_id;
@@ -199,7 +177,7 @@
                     photoPaths = uploadResults.map(res => res.data?.path).filter(Boolean);
                 }
                 showLoading("Saving trial data...");
-                const trialData = { formulation_id: UI.trial.select.value, dosage: UI.trial.dosage.value, weeds: UI.trial.weeds.value, result: parseInt(UI.trial.result.value), notes: UI.trial.notes.value, photo_paths: photoPaths, user_id: user.id, organization_id: state.userProfile.organization_id };
+                const trialData = { formulation_id: UI.trial.select.value, dosage: document.getElementById('dosage').value, weeds: document.getElementById('weeds').value, result: parseInt(document.getElementById('result').value), notes: document.getElementById('notes').value, photo_paths: photoPaths, user_id: user.id, organization_id: state.userProfile.organization_id };
                 const { error } = await _supabase.from('trials').insert(trialData);
                 if (error) throw error;
                 hideModals();
@@ -234,8 +212,9 @@
             if(tab) tab.classList.add('tab-active');
         };
         
-        const initializeAppEventListeners = () => {
-            if (mainAppInitialized) return; 
+        // This is the key fix: It only binds main app events AFTER the app is visible.
+        const initializeMainApp = () => {
+            if (mainAppInitialized) return;
             UI.app.logoutBtn.addEventListener('click', () => _supabase.auth.signOut());
             UI.app.createOrgBtn.addEventListener('click', handleCreateOrg);
             UI.formulation.addBtn.addEventListener('click', () => { UI.formulation.form.reset(); UI.formulation.ingredientsContainer.innerHTML = ''; addIngredientInput(); UI.formulation.modal.style.display = 'flex'; });
@@ -260,30 +239,26 @@
                 if (state.userProfile?.organization_id) {
                     UI.app.mainContent.classList.remove('hidden');
                     UI.app.orgSetup.classList.add('hidden');
+                    await loadOrganizationData();
                 } else {
                     UI.app.mainContent.classList.add('hidden');
                     UI.app.orgSetup.classList.remove('hidden');
                 }
-                // Key fix: Initialize app listeners AFTER the correct view is shown
-                initializeAppEventListeners(); 
-                if (state.userProfile?.organization_id) {
-                    await loadOrganizationData();
-                }
+                initializeMainApp();
             } else {
                 state.userProfile = null;
                 UI.auth.container.classList.remove('hidden');
                 UI.app.container.classList.add('hidden');
-                mainAppInitialized = false; 
+                mainAppInitialized = false;
             }
             hideLoading();
         };
         
-        // --- INITIALIZATION ---
-        UI.auth.form.addEventListener('submit', async (e) => {
+        const handleAuthFormSubmit = async (e) => {
             e.preventDefault();
             showLoading(state.isLogin ? "Logging in..." : "Signing up...");
-            const email = UI.auth.email.value;
-            const password = UI.auth.password.value;
+            const email = document.getElementById('auth-email').value;
+            const password = document.getElementById('auth-password').value;
             UI.auth.error.classList.add('hidden');
             try {
                 const { error } = state.isLogin
@@ -296,7 +271,11 @@
             } finally {
                 hideLoading();
             }
-        });
+        };
+
+        // --- INITIALIZATION ---
+        cacheUI();
+        UI.auth.form.addEventListener('submit', handleAuthFormSubmit);
         UI.auth.toggleLink.addEventListener('click', toggleAuthMode);
         
         _supabase.auth.onAuthStateChange((_event, session) => handleAuthStateChange(session));
