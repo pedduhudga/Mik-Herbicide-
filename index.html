@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Herbicide Trial Manager - Full Edition</title>
+    <title>Herbicide Trial Manager</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
@@ -53,7 +53,6 @@
                 <button id="logout-btn" class="btn-secondary">Logout</button>
             </div>
         </div>
-
         <div id="org-setup-container" class="text-center p-8 bg-gray-50 rounded-lg hidden">
             <h2 class="text-2xl font-bold mb-4">Welcome!</h2>
             <p class="mb-6 text-gray-600">To start collaborating, create an organization for your team.</p>
@@ -62,7 +61,6 @@
                 <button id="create-org-btn" class="btn-primary w-full py-3">Create Organization</button>
             </div>
         </div>
-
         <div id="main-content" class="flex-1 overflow-y-auto hidden">
             <div class="flex space-x-4 border-b-2 border-gray-200 mb-6">
                 <button id="tab-formulations" class="tab-btn py-2 px-4 font-semibold text-gray-500 border-b-2 border-transparent">Formulations</button>
@@ -74,8 +72,6 @@
             <div id="section-organization" class="tab-section hidden"><div class="card bg-gray-50"><h3 class="text-xl font-bold text-gray-700 mb-2">Organization: <span id="org-name-display" class="text-blue-600"></span></h3><div class="mt-8"><h4 class="font-semibold text-gray-700 mb-2">Team Members</h4><ul id="members-list" class="space-y-2"></ul></div></div></div>
         </div>
     </div>
-
-    <!-- Modals -->
     <div id="formulation-modal" class="modal"><div class="modal-content"><h3 class="text-2xl font-bold mb-4">New Formulation</h3><form id="formulation-form" class="space-y-4"><input type="text" id="formulation-name" placeholder="Formulation Name" required class="w-full p-2 border rounded"><div id="ingredients-container" class="space-y-2"></div><button type="button" id="add-ingredient-btn" class="btn-secondary">Add Ingredient</button><div class="flex justify-end space-x-2"><button type="button" id="cancel-formulation-btn" class="btn-secondary">Cancel</button><button type="submit" class="btn-primary">Save</button></div></form></div></div>
     <div id="trial-modal" class="modal"><div class="modal-content"><h3 class="text-2xl font-bold mb-4">New Trial</h3><form id="trial-form" class="space-y-4"><select id="trial-formulation-select" required class="w-full p-2 border rounded"></select><input type="text" id="dosage" placeholder="Dosage" required class="w-full p-2 border rounded"><input type="text" id="weeds" placeholder="Weed Species" required class="w-full p-2 border rounded"><input type="number" id="result" placeholder="Result (%)" required class="w-full p-2 border rounded"><textarea id="notes" placeholder="Notes" class="w-full p-2 border rounded"></textarea><div><label for="trial-photos">Photos</label><input type="file" id="trial-photos" multiple accept="image/*" class="w-full p-2 border rounded mt-1"></div><div class="flex justify-end space-x-2"><button type="button" id="cancel-trial-btn" class="btn-secondary">Cancel</button><button type="submit" class="btn-primary">Save</button></div></form></div></div>
 
@@ -87,29 +83,69 @@
         const { createClient } = supabase;
         const _supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-        // --- GLOBAL STATE ---
         let state = { userProfile: null, isLogin: true, formulations: [], trials: [], activeTab: 'formulations' };
         let ingredientCounter = 0;
 
-        // --- DOM ELEMENT REFERENCES ---
-        // We define this object once for easy access
+        // --- UI ELEMENT REFERENCES ---
+        // This is a safer way to get elements. We define them as functions so they
+        // are only looked for when they are needed, which prevents crashes on the login screen.
         const UI = {
-            loadingOverlay: document.getElementById('loading-overlay'),
-            loadingText: document.getElementById('loading-text'),
-            auth: { container: document.getElementById('auth-container'), title: document.getElementById('auth-title'), error: document.getElementById('auth-error'), form: document.getElementById('auth-form'), email: document.getElementById('auth-email'), password: document.getElementById('auth-password'), submitBtn: document.getElementById('auth-submit-btn'), toggleLink: document.getElementById('auth-toggle-link') },
-            app: { container: document.getElementById('app'), userEmail: document.getElementById('user-email'), logoutBtn: document.getElementById('logout-btn'), mainContent: document.getElementById('main-content'), orgSetup: document.getElementById('org-setup-container'), orgNameInput: document.getElementById('org-name-input'), createOrgBtn: document.getElementById('create-org-btn'), orgNameDisplay: document.getElementById('org-name-display'), membersList: document.getElementById('members-list') },
-            tabs: document.querySelectorAll('.tab-btn'),
-            sections: document.querySelectorAll('.tab-section'),
-            formulation: { modal: document.getElementById('formulation-modal'), form: document.getElementById('formulation-form'), name: document.getElementById('formulation-name'), list: document.getElementById('formulations-list'), ingredientsContainer: document.getElementById('ingredients-container'), addBtn: document.getElementById('add-formulation-btn'), addIngredientBtn: document.getElementById('add-ingredient-btn'), cancelBtn: document.getElementById('cancel-formulation-btn') },
-            trial: { modal: document.getElementById('trial-modal'), form: document.getElementById('trial-form'), list: document.getElementById('trials-list'), select: document.getElementById('trial-formulation-select'), dosage: document.getElementById('dosage'), weeds: document.getElementById('weeds'), result: document.getElementById('result'), notes: document.getElementById('notes'), photos: document.getElementById('trial-photos'), addBtn: document.getElementById('add-trial-btn'), cancelBtn: document.getElementById('cancel-trial-btn') }
+            loadingOverlay: () => document.getElementById('loading-overlay'),
+            loadingText: () => document.getElementById('loading-text'),
+            auth: {
+                container: () => document.getElementById('auth-container'),
+                title: () => document.getElementById('auth-title'),
+                error: () => document.getElementById('auth-error'),
+                form: () => document.getElementById('auth-form'),
+                email: () => document.getElementById('auth-email'),
+                password: () => document.getElementById('auth-password'),
+                submitBtn: () => document.getElementById('auth-submit-btn'),
+                toggleLink: () => document.getElementById('auth-toggle-link')
+            },
+            app: {
+                container: () => document.getElementById('app'),
+                userEmail: () => document.getElementById('user-email'),
+                logoutBtn: () => document.getElementById('logout-btn'),
+                mainContent: () => document.getElementById('main-content'),
+                orgSetup: () => document.getElementById('org-setup-container'),
+                orgNameInput: () => document.getElementById('org-name-input'),
+                createOrgBtn: () => document.getElementById('create-org-btn'),
+                orgNameDisplay: () => document.getElementById('org-name-display'),
+                membersList: () => document.getElementById('members-list')
+            },
+            tabs: () => document.querySelectorAll('.tab-btn'),
+            sections: () => document.querySelectorAll('.tab-section'),
+            formulation: {
+                modal: () => document.getElementById('formulation-modal'),
+                form: () => document.getElementById('formulation-form'),
+                name: () => document.getElementById('formulation-name'),
+                list: () => document.getElementById('formulations-list'),
+                ingredientsContainer: () => document.getElementById('ingredients-container'),
+                addBtn: () => document.getElementById('add-formulation-btn'),
+                addIngredientBtn: () => document.getElementById('add-ingredient-btn'),
+                cancelBtn: () => document.getElementById('cancel-formulation-btn')
+            },
+            trial: {
+                modal: () => document.getElementById('trial-modal'),
+                form: () => document.getElementById('trial-form'),
+                list: () => document.getElementById('trials-list'),
+                select: () => document.getElementById('trial-formulation-select'),
+                dosage: () => document.getElementById('dosage'),
+                weeds: () => document.getElementById('weeds'),
+                result: () => document.getElementById('result'),
+                notes: () => document.getElementById('notes'),
+                photos: () => document.getElementById('trial-photos'),
+                addBtn: () => document.getElementById('add-trial-btn'),
+                cancelBtn: () => document.getElementById('cancel-trial-btn')
+            }
         };
 
         // --- UTILS ---
-        const showLoading = (text = "Loading...") => { UI.loadingText.textContent = text; UI.loadingOverlay.classList.remove('hidden'); };
-        const hideLoading = () => UI.loadingOverlay.classList.add('hidden');
-        const hideModals = () => { UI.formulation.modal.style.display = 'none'; UI.trial.modal.style.display = 'none'; };
+        const showLoading = (text = "Loading...") => { UI.loadingText().textContent = text; UI.loadingOverlay().classList.remove('hidden'); };
+        const hideLoading = () => UI.loadingOverlay().classList.add('hidden');
+        const hideModals = () => { UI.formulation.modal().style.display = 'none'; UI.trial.modal().style.display = 'none'; };
 
-        // --- DATA FETCHING & RENDERING ---
+        // --- DATA & RENDERING ---
         const fetchUserProfile = async (userId) => {
             const { data, error } = await _supabase.from('profiles').select('*').eq('id', userId).single();
             if (error && error.code !== 'PGRST116') console.error("Profile fetch error:", error.message);
@@ -120,41 +156,49 @@
             showLoading("Loading data...");
             try {
                 const orgId = state.userProfile.organization_id;
-                const { data, error } = await _supabase.rpc('get_organization_data', { org_id: orgId });
-                if (error) throw error;
-                UI.app.orgNameDisplay.innerText = data.organization_name;
-                state.formulations = data.formulations || [];
-                state.trials = data.trials || [];
+                const [orgRes, membersRes, formulationsRes, trialsRes] = await Promise.all([
+                    _supabase.from('organizations').select('name').eq('id', orgId).single(),
+                    _supabase.from('profiles').select('id').eq('organization_id', orgId),
+                    _supabase.from('formulations').select('*').eq('organization_id', orgId),
+                    _supabase.from('trials').select('*').eq('organization_id', orgId)
+                ]);
+                if (orgRes.error) throw orgRes.error;
+                UI.app.orgNameDisplay().innerText = orgRes.data.name;
+                if (membersRes.error) throw membersRes.error;
+                renderMembers(membersRes.data);
+                if (formulationsRes.error) throw formulationsRes.error;
+                state.formulations = formulationsRes.data || [];
+                if (trialsRes.error) throw trialsRes.error;
+                state.trials = trialsRes.data || [];
                 renderAll();
-                renderMembers(data.members || []);
             } catch (error) { console.error("Data loading error:", error.message); }
             finally { hideLoading(); }
         };
         const renderAll = () => { renderFormulations(); renderTrials(); switchTab(state.activeTab); };
-        const renderMembers = (members) => { UI.app.membersList.innerHTML = members.map(m => `<li class="bg-white p-2 rounded-md shadow-sm">User ID: ...${m.id.slice(-12)}</li>`).join(''); };
+        const renderMembers = (members) => { UI.app.membersList().innerHTML = members.map(m => `<li class="bg-white p-2 rounded-md shadow-sm">User ID: ...${m.id.slice(-12)}</li>`).join(''); };
         const renderFormulations = () => {
-            UI.formulation.list.innerHTML = '';
-            UI.trial.select.innerHTML = '<option value="">Select Formulation</option>';
+            UI.formulation.list().innerHTML = '';
+            UI.trial.select().innerHTML = '<option value="">Select Formulation</option>';
             state.formulations.forEach(f => {
                 const ingredients = (JSON.parse(f.ingredients || '[]')).map(i => `${i.name} ${i.qty}${i.unit}`).join(', ');
                 const card = document.createElement('div');
                 card.className = 'card';
                 card.innerHTML = `<h3 class="font-bold text-lg">${f.name}</h3><p class="text-sm text-gray-600 truncate">${ingredients || 'No ingredients'}</p>`;
-                UI.formulation.list.appendChild(card);
+                UI.formulation.list().appendChild(card);
                 const option = document.createElement('option');
                 option.value = f.id;
                 option.textContent = f.name;
-                UI.trial.select.appendChild(option);
+                UI.trial.select().appendChild(option);
             });
         };
         const renderTrials = () => {
-            UI.trial.list.innerHTML = '';
+            UI.trial.list().innerHTML = '';
             state.trials.forEach(t => {
                 const formulation = state.formulations.find(f => f.id === t.formulation_id);
                 const card = document.createElement('div');
                 card.className = 'card';
                 card.innerHTML = `<h3 class="font-bold text-lg">${formulation ? formulation.name : 'Unknown'}</h3><p>vs <span class="italic">${t.weeds}</span></p><p class="text-xl font-semibold">${t.result}% Effective</p>`;
-                UI.trial.list.appendChild(card);
+                UI.trial.list().appendChild(card);
             });
         };
 
@@ -164,28 +208,28 @@
             const user = session?.user;
             if (user) {
                 await fetchUserProfile(user.id);
-                UI.auth.container.classList.add('hidden');
-                UI.app.container.classList.remove('hidden');
-                UI.app.userEmail.innerText = user.email;
+                UI.auth.container().classList.add('hidden');
+                UI.app.container().classList.remove('hidden');
+                UI.app.userEmail().innerText = user.email;
                 if (state.userProfile?.organization_id) {
-                    UI.app.mainContent.classList.remove('hidden');
-                    UI.app.orgSetup.classList.add('hidden');
+                    UI.app.mainContent().classList.remove('hidden');
+                    UI.app.orgSetup().classList.add('hidden');
                     await loadOrganizationData();
                 } else {
-                    UI.app.mainContent.classList.add('hidden');
-                    UI.app.orgSetup.classList.remove('hidden');
+                    UI.app.mainContent().classList.add('hidden');
+                    UI.app.orgSetup().classList.remove('hidden');
                 }
             } else {
                 state.userProfile = null;
-                UI.auth.container.classList.remove('hidden');
-                UI.app.container.classList.add('hidden');
+                UI.auth.container().classList.remove('hidden');
+                UI.app.container().classList.add('hidden');
             }
             hideLoading();
         };
 
         const handleCreateOrg = async () => {
             showLoading("Creating organization...");
-            const orgName = UI.app.orgNameInput.value.trim();
+            const orgName = UI.app.orgNameInput().value.trim();
             if (!orgName) { hideLoading(); return; }
             const { data: { user } } = await _supabase.auth.getUser();
             try {
@@ -207,7 +251,7 @@
                 if(name && qty && unit) ingredients.push({name, qty, unit});
             });
             const { data: { user } } = await _supabase.auth.getUser();
-            const { error } = await _supabase.from('formulations').insert({ name: UI.formulation.name.value, ingredients: JSON.stringify(ingredients), user_id: user.id, organization_id: state.userProfile.organization_id });
+            const { error } = await _supabase.from('formulations').insert({ name: UI.formulation.name().value, ingredients: JSON.stringify(ingredients), user_id: user.id, organization_id: state.userProfile.organization_id });
             if (error) console.error(error.message);
             else { hideModals(); await loadOrganizationData(); }
             hideLoading();
@@ -218,7 +262,7 @@
             const { data: { user } } = await _supabase.auth.getUser();
             showLoading("Uploading files...");
             try {
-                const files = UI.trial.photos.files;
+                const files = UI.trial.photos().files;
                 let photoPaths = [];
                 if (files.length > 0) {
                     const orgId = state.userProfile.organization_id;
@@ -231,32 +275,4 @@
                 }
                 
                 showLoading("Saving trial data...");
-                const trialData = { formulation_id: UI.trial.select.value, dosage: UI.trial.dosage.value, weeds: UI.trial.weeds.value, result: parseInt(UI.trial.result.value), notes: UI.trial.notes.value, photo_paths: photoPaths, user_id: user.id, organization_id: state.userProfile.organization_id };
-                const { error } = await _supabase.from('trials').insert(trialData);
-                if (error) throw error;
-                hideModals();
-                await loadOrganizationData();
-            } catch (error) { console.error("Trial submission error:", error.message); }
-            finally { hideLoading(); }
-        };
-
-        const toggleAuthMode = (e) => {
-            e.preventDefault();
-            state.isLogin = !state.isLogin;
-            UI.auth.title.innerText = state.isLogin ? 'Login' : 'Sign Up';
-            UI.auth.submitBtn.innerText = state.isLogin ? 'Login' : 'Sign Up';
-            UI.auth.toggleLink.innerText = state.isLogin ? 'Need an account? Sign Up' : 'Have an account? Login';
-            UI.auth.error.classList.add('hidden');
-};
-        const addIngredientInput = () => {
-            const div = document.createElement('div');
-            div.className = 'flex items-center space-x-2';
-            div.innerHTML = `<input type="text" placeholder="Ingredient" class="ingredient-name w-full p-2 border rounded"><input type="number" placeholder="Qty" class="ingredient-qty w-24 p-2 border rounded"><input type="text" placeholder="Unit" class="ingredient-unit w-20 p-2 border rounded">`;
-            UI.formulation.ingredientsContainer.appendChild(div);
-        };
-        
-        const switchTab = (tabId) => {
-            state.activeTab = tabId;
-            UI.sections.forEach(s => s.classList.add('hidden'));
-            UI.tabs.forEach(t => t.classList.remove('tab-active'));
-          
+                const trialData = { formulation_id: UI.trial.select().value, dosage: UI.trial.dosage().value, weeds: UI.trial.weeds().value, result: parseInt(UI.trial.result().value), notes: UI.trial.notes().value, photo_paths: photoPaths, user_id: user.id, organization_id: state.userProfile.organizatio
