@@ -80,7 +80,6 @@
     <div id="toast" class="toast"></div>
 
     <script>
-        // NEW URL ADDED HERE
         const DEFAULT_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyjrDiF7O6ANiYrZ5I4RuXAmo6hs18amnBr-2jyVoT_kJ1rpxf-flq9Cp4qs2Eakww/exec';
         // IMPORTANT: Replace this with your own Google Client ID from Google Cloud Platform for the sign-in feature to work.
         const GOOGLE_CLIENT_ID = '296425330223-m7p504qt7l1nc7gjnj2iolnf7di67n8a.apps.googleusercontent.com'; 
@@ -100,7 +99,7 @@
                 folderId: ''
             },
             auth: {
-                token: null
+                token: null // This token will still be used for all subsequent secure data access
             },
             data: {
                 formulations: [],
@@ -140,6 +139,8 @@
 
         // --- API & DATA ---
         async function apiCall(action, payload = {}, requiresAuth = true) {
+            // Note: If requiresAuth is false (as it is for createNewBackend now), 
+            // the token check and refresh are skipped for this specific call.
             if (requiresAuth && !state.auth.token) {
                  await refreshToken();
             }
@@ -148,6 +149,7 @@
             const body = {
                 action: action,
                 payload: payload,
+                // If requiresAuth is false, accessToken will be null or the payload's own token (if provided).
                 accessToken: requiresAuth ? state.auth.token : (payload.accessToken || null)
             };
             
@@ -156,8 +158,7 @@
                 const headers = { 
                     'Content-Type': 'text/plain;charset=utf-8',
                     'Cache-Control': 'no-cache',
-                    'Access-Control-Allow-Origin': window.location.origin, // Explicitly set the Origin header
-                    // We must use 'text/plain' for the POST body due to Apps Script limitations.
+                    'Access-Control-Allow-Origin': window.location.origin, 
                 };
 
                 const response = await fetch(url, {
@@ -219,6 +220,7 @@
             state.ui.isLoading = true;
             renderApp();
             try {
+                // NOTE: All data loading calls require authentication
                 const [formulations, trials, photos] = await Promise.all([
                     apiCall('getFormulations', { sheetId: state.settings.sheetId }),
                     apiCall('getTrials', { sheetId: state.settings.sheetId }),
@@ -301,15 +303,18 @@
                 client_id: GOOGLE_CLIENT_ID,
                 scope: 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/userinfo.profile',
                 callback: async (tokenResponse) => {
-                    // This callback runs after the user interacts with the popup.
+                    // This callback runs after the user interacts with the popup and gives us the token.
                     if (tokenResponse && tokenResponse.access_token) {
                         state.auth.token = tokenResponse.access_token;
                         
-                        // Now that we have the token, proceed with creating the backend files.
+                        // NOTE: We no longer pass the token in the payload for this call,
+                        // as the script is running as "Me" and must be publicly accessible.
                         showToast('Permissions granted! Creating your personal backend...', 'success');
                         loadingOverlay.classList.remove('hidden');
                         try {
-                            const result = await apiCall('createNewBackend', { accessToken: state.auth.token }, false);
+                            // *** MODIFIED CALL: requiresAuth set to FALSE, and we don't pass the token. ***
+                            const result = await apiCall('createNewBackend', {}, false); 
+                            
                             if (result && result.newSheetId && result.newFolderId) {
                                 state.settings = {
                                     scriptUrl: state.settings.scriptUrl,
