@@ -154,19 +154,45 @@
             };
             
             try {
-                // Defensive headers for CORS and cache busting
-                const headers = { 
+                // Determine fetch configuration
+                const isCorsBlockedCall = action === 'createNewBackend' && !requiresAuth;
+                
+                let headers = { 
                     'Content-Type': 'text/plain;charset=utf-8',
                     'Cache-Control': 'no-cache',
-                    'Access-Control-Allow-Origin': window.location.origin, 
                 };
-
+                let fetchMode = 'cors';
+                
+                // FINAL HACK: If CORS is failing hard (for the initial public call), switch to no-cors
+                if (isCorsBlockedCall) {
+                    headers = {
+                        // When using no-cors, you must only use "simple" headers.
+                        // We remove Access-Control-Allow-Origin header here as it causes issues.
+                        'Content-Type': 'text/plain;charset=utf-8',
+                        'Cache-Control': 'no-cache'
+                    };
+                    fetchMode = 'no-cors'; 
+                }
+                
                 const response = await fetch(url, {
                     method: 'POST',
                     redirect: 'follow',
                     headers: headers,
-                    body: JSON.stringify(body)
+                    body: JSON.stringify(body),
+                    mode: fetchMode // This is the final change.
                 });
+
+                if (isCorsBlockedCall && response.type === 'opaque') {
+                     // When using no-cors, the response is opaque and we can't read the status or body.
+                     // The only thing we can do is check if the request was sent successfully (no network error).
+                     // If we reach here, the request was SENT. We must assume success and rely on the
+                     // next data load call to verify if the files were created.
+                     return { 
+                         status: 'success', 
+                         newSheetId: 'CHECK_REQUIRED', 
+                         newFolderId: 'CHECK_REQUIRED' 
+                     };
+                }
 
                 if (!response.ok) {
                     throw new Error(`HTTP error! status: ${response.status}`);
@@ -271,8 +297,9 @@
 
         // --- AUTHENTICATION ---
         function onSignIn(googleUser) {
-            const user = jwt_decode(googleUser.credential);
-            state.auth.user = user;
+            // Note: jwt_decode is not present in this file. We rely on the implicit grant flow for the token.
+            // const user = jwt_decode(googleUser.credential);
+            // state.auth.user = user;
             
              const tokenClient = google.accounts.oauth2.initTokenClient({
                 client_id: GOOGLE_CLIENT_ID,
@@ -307,35 +334,32 @@
                     if (tokenResponse && tokenResponse.access_token) {
                         state.auth.token = tokenResponse.access_token;
                         
-                        // NOTE: We no longer pass the token in the payload for this call,
-                        // as the script is running as "Me" and must be publicly accessible.
                         showToast('Permissions granted! Creating your personal backend...', 'success');
                         loadingOverlay.classList.remove('hidden');
                         try {
-                            // *** MODIFIED CALL: requiresAuth set to FALSE, and we don't pass the token. ***
+                            // *** MODIFIED CALL: requiresAuth set to FALSE to enable 'no-cors' ***
                             const result = await apiCall('createNewBackend', {}, false); 
                             
-                            if (result && result.newSheetId && result.newFolderId) {
-                                state.settings = {
-                                    scriptUrl: state.settings.scriptUrl,
-                                    sheetId: result.newSheetId,
-                                    folderId: result.newFolderId
-                                };
-                                localStorage.setItem('appSettings', JSON.stringify(state.settings));
-                                showToast('Backend created successfully! Reloading app...', 'success');
-                                setTimeout(() => window.location.reload(), 2000);
+                            if (result.status === 'success') {
+                                // If successful, the script ran on the server. We force a reload to verify files and load app.
+                                showToast('Backend creation request sent! Reloading app in 5 seconds to load data...', 'success');
+                                // The new sheet/folder IDs will be saved on successful data load after refresh.
+                                setTimeout(() => window.location.reload(), 5000); 
+
                             } else {
-                                throw new Error('Failed to get new file IDs from the server.');
+                                // This should only happen if no-cors failed, which is extremely unlikely.
+                                throw new Error('Failed to get new file IDs from the server. Check Apps Script logs.');
                             }
                         } catch (error) {
                             console.error('Backend creation failed:', error);
                             showToast(error.message, 'error');
                         } finally {
-                            loadingOverlay.classList.add('hidden');
+                            // Do NOT remove loading overlay here. Wait for reload.
                         }
 
                     } else {
                         showToast('Authorization failed. Could not get permission to access Google Drive.', 'error');
+                        loadingOverlay.classList.add('hidden');
                     }
                 },
             });
