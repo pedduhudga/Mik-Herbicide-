@@ -80,7 +80,8 @@
     <div id="toast" class="toast"></div>
 
     <script>
-        const DEFAULT_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbx8bx5JvmHEUU2127WsvA0Z74I7KUlKJIwDK79xHDwimIoUX3F9sKkdoWBz1Sw4nAvI/exec';
+        // NEW URL ADDED HERE
+        const DEFAULT_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyjrDiF7O6ANiYrZ5I4RuXAmo6hs18amnBr-2jyVoT_kJ1rpxf-flq9Cp4qs2Eakww/exec';
         // IMPORTANT: Replace this with your own Google Client ID from Google Cloud Platform for the sign-in feature to work.
         const GOOGLE_CLIENT_ID = '296425330223-m7p504qt7l1nc7gjnj2iolnf7di67n8a.apps.googleusercontent.com'; 
         const CURRENCY_SYMBOL = '₹';
@@ -151,10 +152,18 @@
             };
             
             try {
+                // Defensive headers for CORS and cache busting
+                const headers = { 
+                    'Content-Type': 'text/plain;charset=utf-8',
+                    'Cache-Control': 'no-cache',
+                    'Access-Control-Allow-Origin': window.location.origin, // Explicitly set the Origin header
+                    // We must use 'text/plain' for the POST body due to Apps Script limitations.
+                };
+
                 const response = await fetch(url, {
                     method: 'POST',
                     redirect: 'follow',
-                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                    headers: headers,
                     body: JSON.stringify(body)
                 });
 
