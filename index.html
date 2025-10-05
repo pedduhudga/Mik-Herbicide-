@@ -152,17 +152,18 @@
             };
             
             try {
-                // Return to simple fetch configuration, relying on the Apps Script's guaranteed CORS
+                // Final Headers attempt: Using a common, simple Content-Type to bypass preflight issues.
                 const headers = { 
-                    'Content-Type': 'text/plain;charset=utf-8',
+                    'Content-Type': 'application/x-www-form-urlencoded',
                     'Cache-Control': 'no-cache',
                 };
                 
+                // IMPORTANT: The Apps Script server expects a string. We still send the JSON string.
                 const response = await fetch(url, {
                     method: 'POST',
                     redirect: 'follow',
                     headers: headers,
-                    body: JSON.stringify(body),
+                    body: JSON.stringify(body), 
                     mode: 'cors' 
                 });
 
