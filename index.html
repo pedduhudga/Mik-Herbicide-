@@ -80,7 +80,7 @@
     <div id="toast" class="toast"></div>
 
     <script>
-        const DEFAULT_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyxqunoQQt8_pdrJgk-VyvafkXuoQA9n49E9wYiZReA7xL8fXc1L8JLcdj-fQAqC02p/exec';
+        const DEFAULT_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbx8bx5JvmHEUU2127WsvA0Z74I7KUlKJIwDK79xHDwimIoUX3F9sKkdoWBz1Sw4nAvI/exec';
         // IMPORTANT: Replace this with your own Google Client ID from Google Cloud Platform for the sign-in feature to work.
         const GOOGLE_CLIENT_ID = '296425330223-m7p504qt7l1nc7gjnj2iolnf7di67n8a.apps.googleusercontent.com'; 
         const CURRENCY_SYMBOL = '₹';
@@ -154,7 +154,7 @@
                 const response = await fetch(url, {
                     method: 'POST',
                     redirect: 'follow',
-                    headers: { 'Content-Type': 'text/plain;charset=utf-e' },
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
                     body: JSON.stringify(body)
                 });
 
@@ -211,9 +211,9 @@
             renderApp();
             try {
                 const [formulations, trials, photos] = await Promise.all([
-                    apiCall('getFormulations'),
-                    apiCall('getTrials'),
-                    apiCall('getAllPhotos')
+                    apiCall('getFormulations', { sheetId: state.settings.sheetId }),
+                    apiCall('getTrials', { sheetId: state.settings.sheetId }),
+                    apiCall('getAllPhotos', { folderId: state.settings.folderId })
                 ]);
                 state.data.formulations = formulations || [];
                 state.data.trials = trials || [];
@@ -881,7 +881,7 @@
             
             try {
                 loadingOverlay.classList.remove('hidden');
-                const result = await apiCall('saveFormulation', { formulation });
+                const result = await apiCall('saveFormulation', { formulation: formulation, sheetId: state.settings.sheetId });
                 showToast(result.message, 'success');
                 closeModal('formulation-modal');
                 await loadInitialData();
@@ -896,7 +896,7 @@
             if (confirm('Are you sure you want to delete this formulation? This may affect existing trials.')) {
                 try {
                     loadingOverlay.classList.remove('hidden');
-                    const result = await apiCall('deleteFormulation', { id });
+                    const result = await apiCall('deleteFormulation', { id: id, sheetId: state.settings.sheetId });
                     showToast(result.message, 'success');
                     await loadInitialData();
                 } catch (error) {
@@ -942,7 +942,7 @@
 
             try {
                 loadingOverlay.classList.remove('hidden');
-                const result = await apiCall('saveTrial', { trial });
+                const result = await apiCall('saveTrial', { trial: trial, sheetId: state.settings.sheetId });
                 showToast(result.message, 'success');
                 closeModal('trial-modal');
                 await loadInitialData();
@@ -957,7 +957,7 @@
             if (confirm('Are you sure you want to delete this trial and all its photos?')) {
                 try {
                     loadingOverlay.classList.remove('hidden');
-                    const result = await apiCall('deleteTrial', { id });
+                    const result = await apiCall('deleteTrial', { id: id, sheetId: state.settings.sheetId, folderId: state.settings.folderId });
                     showToast(result.message, 'success');
                     await loadInitialData();
                 } catch (error) {
@@ -1021,7 +1021,8 @@
                                 trialId: trialId,
                                 filename: file.name,
                                 mimeType: file.type,
-                                data: base64Data
+                                data: base64Data,
+                                folderId: state.settings.folderId
                             };
                             await apiCall('uploadPhoto', fileData);
                             resolve();
@@ -1038,7 +1039,7 @@
                 await Promise.all(uploadPromises);
                 showToast('All photos uploaded successfully!', 'success');
                 // Refresh photos for the current trial
-                const photos = await apiCall('getPhotosForTrial', { trialId });
+                const photos = await apiCall('getPhotosForTrial', { trialId: trialId, folderId: state.settings.folderId });
                 state.data.photos[trialId] = photos;
                 renderApp();
             } catch (error) {
@@ -1053,9 +1054,9 @@
              if (confirm('Are you sure you want to delete this photo?')) {
                 try {
                     loadingOverlay.classList.remove('hidden');
-                    await apiCall('deletePhoto', { photoId });
+                    await apiCall('deletePhoto', { photoId: photoId });
                     showToast('Photo deleted.', 'success');
-                    const photos = await apiCall('getPhotosForTrial', { trialId });
+                    const photos = await apiCall('getPhotosForTrial', { trialId: trialId, folderId: state.settings.folderId });
                     state.data.photos[trialId] = photos;
                     renderApp();
                 } catch(error) {
