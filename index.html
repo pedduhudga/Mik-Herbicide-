@@ -13,6 +13,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.12/cropper.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pptxgenjs/3.12.0/pptxgen.min.js"></script>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
     <style>
         body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; }
         .nav-link { transition: all 0.2s ease-in-out; border-bottom: 2px solid transparent; padding-top: 1rem; padding-bottom: 1rem; cursor: pointer; }
@@ -35,50 +36,120 @@
 <body class="antialiased">
     <!-- CONFIGURATION -->
     <script>
-        const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyx_NQW0JldYv7IIDqyZde1cDMCbAY7SiA6DcOZL38jOZbxrRgQL6Pmv5YNiTnNVtWq/exec';
+        const DEFAULT_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz_KfIv5w-UeCimBSjdgSJWIC57O5eU87gBK6IZJdb-PR8F3fjY3-Jc0Oq0xwDld54A/exec';
+        // IMPORTANT: Replace this with your own Google Client ID from Google Cloud Platform for the sign-in feature to work.
+        const GOOGLE_CLIENT_ID = '296425330223-m7p504qt7l1nc7gjnj2iolnf7di67n8a.apps.googleusercontent.com'; 
         const CURRENCY_SYMBOL = '₹';
     </script>
     <!-- App Container -->
-    <div class="min-h-screen bg-gray-100">
-        <header class="bg-white shadow-sm"><div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center"><h1 class="text-2xl font-bold text-gray-800">Herbicide Trial Manager</h1></div></header>
-        <nav class="bg-white border-b border-gray-200"><div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8"><div class="flex items-center space-x-8 -mb-px">
-            <a class="nav-link active text-sm font-medium" data-page="formulations">Formulations</a>
-            <a class="nav-link text-sm font-medium" data-page="trials">Trials</a>
-            <a class="nav-link text-sm font-medium" data-page="organisations">Organisations</a>
-            <a class="nav-link text-sm font-medium" data-page="ingredients">Ingredient Costs</a>
-            <a class="nav-link text-sm font-medium" data-page="aiAssistant">AI Assistant</a>
-            <a class="nav-link text-sm font-medium" data-page="dataMgmt">Data Mgmt</a>
-            <a class="nav-link text-sm font-medium" data-page="settings">Settings</a>
-        </div></div></nav>
-        <main id="main-content" class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8"></main>
+    <div id="app-container" class="hidden">
+        <div class="min-h-screen bg-gray-100">
+            <header class="bg-white shadow-sm"><div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center"><h1 class="text-2xl font-bold text-gray-800">Herbicide Trial Manager</h1></div></header>
+            <nav class="bg-white border-b border-gray-200"><div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8"><div class="flex items-center space-x-8 -mb-px">
+                <a class="nav-link active text-sm font-medium" data-page="formulations">Formulations</a>
+                <a class="nav-link text-sm font-medium" data-page="trials">Trials</a>
+                <a class="nav-link text-sm font-medium" data-page="organisations">Organisations</a>
+                <a class="nav-link text-sm font-medium" data-page="ingredients">Ingredient Costs</a>
+                <a class="nav-link text-sm font-medium" data-page="aiAssistant">AI Assistant</a>
+                <a class="nav-link text-sm font-medium" data-page="dataMgmt">Data Mgmt</a>
+                <a class="nav-link text-sm font-medium" data-page="settings">Settings</a>
+            </div></div></nav>
+            <main id="main-content" class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8"></main>
+        </div>
     </div>
+
+    <!-- Onboarding Screen -->
+    <div id="onboarding-container" class="min-h-screen flex items-center justify-center bg-gray-100">
+        <div class="max-w-xl w-full bg-white p-8 rounded-lg shadow-lg text-center">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">Welcome to the Herbicide Trial Manager</h2>
+            <p class="text-gray-600 mb-6">To get started with your own private data, please sign in with your Google account.</p>
+            <div id="google-signin-button"></div>
+            <div id="setup-section" class="hidden mt-6">
+                 <p class="text-sm text-gray-500 mb-4">You are signed in. Click the button below to automatically create a copy of the database and photo folder in your Google Drive.</p>
+                <button id="create-backend-button" class="w-full bg-green-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-green-700 transition">Create My Personal Backend</button>
+            </div>
+             <div class="mt-8 border-t pt-6">
+                <p class="text-sm text-gray-500 mb-4">If you have already set up your backend, please go to the Settings page to enter your URLs.</p>
+                <button id="go-to-settings-button" class="text-sm text-blue-600 hover:underline">Go to Settings &raquo;</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Modals & Overlays -->
     <div id="modal-container"></div>
     <div id="cropper-modal" class="modal"><div class="modal-content bg-white p-6 rounded-lg shadow-xl w-full max-w-4xl mx-auto mt-10"><h3 class="text-lg font-bold mb-4">Crop Image</h3><div id="cropper-container" class="mb-4 bg-gray-200"><img id="image-to-crop"></div><div class="flex justify-end space-x-3"><button data-action="cancel-crop" class="bg-gray-200 text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-300">Cancel</button><button data-action="crop-image" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">Crop & Save Image</button></div></div></div>
     <div id="loading-overlay" class="fixed inset-0 bg-gray-900 bg-opacity-50 z-50 flex items-center justify-center hidden"><div class="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-white"></div></div>
     <div id="toast" class="toast"></div>
+    
     <script>
-    document.addEventListener('DOMContentLoaded', () => {
-        // --- STATE & ELEMENTS (Global within this script scope) ---
-        let state = { currentPage: 'formulations', ingredients: [], formulations: [], trials: [], organisations: [], selectedTrials: [], photoQueue: [], croppedPhotosData: [], geminiApiKey: '' };
+    window.addEventListener('load', () => {
+        let state = { 
+            currentPage: 'formulations', 
+            ingredients: [], 
+            formulations: [], 
+            trials: [], 
+            organisations: [], 
+            selectedTrials: [], 
+            photoQueue: [], 
+            croppedPhotosData: [], 
+            geminiApiKey: '',
+            settings: {
+                scriptUrl: DEFAULT_SCRIPT_URL,
+                sheetId: null,
+                folderId: null
+            },
+            auth: {
+                token: null
+            }
+        };
+
         const mainContent = document.getElementById('main-content');
         const modalContainer = document.getElementById('modal-container');
         const loadingOverlay = document.getElementById('loading-overlay');
         const toast = document.getElementById('toast');
         const cropperModal = document.getElementById('cropper-modal');
         const imageToCrop = document.getElementById('image-to-crop');
+        const appContainer = document.getElementById('app-container');
+        const onboardingContainer = document.getElementById('onboarding-container');
         let cropper = null;
 
-        // --- TEMPLATES ---
         const templates = {
             page: (pageId) => ({
                 formulations: `<div class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4"><div><h2 class="text-xl font-semibold text-gray-700">My Formulations</h2></div><div class="flex-grow"><input type="search" data-action="filter" data-type="formulation" placeholder="Search formulations by name..." class="w-full px-4 py-2 border rounded-lg"></div><div><button data-action="openModal" data-type="formulation" class="bg-blue-600 text-white px-4 py-2 rounded-lg shadow hover:bg-blue-700 transition w-full md:w-auto">+ Add New Formulation</button></div></div><div id="formulations-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>`,
                 trials: `<div class="bg-white p-4 rounded-lg shadow-md mb-6"><h3 class="font-semibold text-gray-800 mb-2">Filters</h3><div class="grid grid-cols-1 md:grid-cols-3 gap-4"><input type="search" data-action="filter" data-type="trial-search" placeholder="Search investigator, species..." class="w-full px-4 py-2 border rounded-lg"><select data-action="filter" data-type="trial-formulation" class="p-2 border rounded-lg bg-white"><option value="">Filter by Formulation</option></select><div class="grid grid-cols-2 gap-2"><input type="date" data-action="filter" data-type="trial-start-date" class="p-2 border rounded-lg" title="Start Date"><input type="date" data-action="filter" data-type="trial-end-date" class="p-2 border rounded-lg" title="End Date"></div></div></div><div class="flex justify-end mb-6"><button data-action="openModal" data-type="trial" class="bg-blue-600 text-white px-4 py-2 rounded-lg shadow hover:bg-blue-700 transition w-full sm:w-auto">+ Log New Trial</button></div><div id="trials-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div><div id="organise-bar" class="hidden fixed bottom-10 left-1/2 -translate-x-1/2 bg-gray-800 text-white py-3 px-6 rounded-lg shadow-lg flex items-center gap-4 z-20"><span id="selected-trials-count"></span><button data-action="open-organise-modal" class="bg-indigo-500 hover:bg-indigo-600 px-4 py-2 rounded-md text-sm font-semibold">Add to Organisation</button></div>`,
                 organisations: `<div class="flex justify-between items-center mb-6"><div><h2 class="text-xl font-semibold text-gray-700">Trial Organisations</h2><p class="text-sm text-gray-500">Group trials together for easier analysis.</p></div></div><div id="organisations-list" class="space-y-8"></div>`,
-                ingredients: `<div class="flex justify-between items-center mb-6"><h2 class="text-xl font-semibold text-gray-700">Ingredient Costs</h2><button data-action="openModal" data-type="ingredient" class="bg-blue-600 text-white px-4 py-2 rounded-lg shadow hover:bg-blue-700 transition">+ Add New Cost</button></div><div id="ingredients-list" class="bg-white p-6 rounded-lg shadow"></div>`,
+                ingredients: `<div class="bg-white p-6 rounded-lg shadow mb-8"><h3 class="text-lg font-medium text-gray-800">Bulk Add Ingredients</h3><p class="text-sm text-gray-500 mb-2">Enter multiple ingredients in the format: Name Cost Unit, ... (e.g., Glyphosate 15000 L, Paraquat 8000 kg)</p><div class="flex gap-2"><textarea id="bulk-ingredients-cost-input" placeholder="IngredientA 100 kg, IngredientB 50 L" class="w-full p-2 border border-gray-300 rounded-md" rows="4"></textarea><button type="button" data-action="apply-bulk-add-cost" class="bg-indigo-600 text-white px-4 py-2 rounded-lg self-start">Add Bulk</button></div></div><div class="flex justify-between items-center mb-6"><h2 class="text-xl font-semibold text-gray-700">Ingredient Costs</h2><button data-action="openModal" data-type="ingredient" class="bg-blue-600 text-white px-4 py-2 rounded-lg shadow hover:bg-blue-700 transition">+ Add New Cost</button></div><div id="ingredients-list" class="bg-white p-6 rounded-lg shadow"></div>`,
                 aiAssistant: `<div class="bg-white p-6 rounded-lg shadow"><h2 class="text-xl font-semibold text-gray-700 mb-4">AI Assistant</h2><div id="ai-chat-box" class="border rounded-lg p-4 overflow-y-auto mb-4 bg-gray-50 flex flex-col gap-2"><div class="ai-message p-3 rounded-lg max-w-xl">Hello! Ask me about your trial data or any other questions you have.</div></div><form id="ai-form" class="flex gap-4"><input type="text" id="ai-input" placeholder="E.g., Which formulation had the best result?" class="flex-grow p-2 border rounded-lg" required><button type="submit" class="bg-blue-600 text-white px-5 py-2 rounded-lg">Send</button></form></div>`,
                 dataMgmt: `<div class="space-y-8"><div><h2 class="text-xl font-semibold text-gray-700 mb-4">Export Data</h2><div class="bg-white p-6 rounded-lg shadow"><p class="text-gray-600 mb-4">Download all your data as a JSON file for backup or as a ZIP with photos.</p><div class="flex gap-4"><button data-action="export-json" class="bg-green-600 text-white px-4 py-2 rounded-lg">Export to JSON</button><button data-action="export-zip" class="bg-green-700 text-white px-4 py-2 rounded-lg">Export with Photos</button></div></div></div><div><h2 class="text-xl font-semibold text-gray-700 mb-4">Import Data</h2><div class="bg-white p-6 rounded-lg shadow"><p class="text-gray-600 mb-4">Upload a previously exported JSON file to restore your data. <strong class="text-red-600">This will overwrite all current data.</strong></p><input type="file" id="import-file-input" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" accept=".json"><button data-action="import-json" class="mt-4 bg-blue-600 text-white px-4 py-2 rounded-lg" disabled>Import from JSON</button></div></div><div><h2 class="text-xl font-semibold text-gray-700 mb-4">Clear All Data</h2><div class="bg-white p-6 rounded-lg shadow border-red-300"><p class="text-gray-600 mb-4">Permanently delete all your data. <strong class="text-red-600">This action cannot be undone.</strong></p><button data-action="clear-data" class="bg-red-600 text-white px-4 py-2 rounded-lg">Clear All Data</button></div></div></div>`,
-                settings: `<div class="bg-white p-6 rounded-lg shadow"><h2 class="text-xl font-semibold text-gray-700 mb-4">Settings</h2><div class="space-y-4"><p>Enter your Google Gemini API Key below to enable the AI Assistant.</p><form id="settings-form" class="flex items-end gap-4"><div class="flex-grow"><label for="gemini-api-key" class="block text-sm font-medium text-gray-700">Gemini API Key</label><input type="password" id="gemini-api-key" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm"></div><button type="submit" class="bg-blue-600 text-white px-5 py-2 rounded-lg">Save Key</button></form></div></div>`,
+                settings: `<div class="bg-white p-6 rounded-lg shadow space-y-8">
+                                <div>
+                                    <h2 class="text-xl font-semibold text-gray-700 mb-4">AI Assistant</h2>
+                                    <p class="text-sm text-gray-600 mb-2">Enter your Google Gemini API Key below to enable the AI Assistant.</p>
+                                    <form id="settings-form" class="flex items-end gap-4"><div class="flex-grow"><label for="gemini-api-key" class="block text-sm font-medium text-gray-700">Gemini API Key</label><input type="password" id="gemini-api-key" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm"></div><button type="submit" class="bg-blue-600 text-white px-5 py-2 rounded-lg">Save Key</button></form>
+                                </div>
+                                <div class="border-t pt-8">
+                                    <h3 class="text-lg font-medium text-gray-900">Data Source Settings</h3>
+                                    <p class="mt-1 text-sm text-gray-600">For multi-user support, you can connect the app to your own Google Sheet and Drive folder.</p>
+                                    <form id="data-source-form" class="mt-4 space-y-4">
+                                        <div>
+                                            <label for="script-url" class="block text-sm font-medium text-gray-700">Apps Script Web App URL</label>
+                                            <input type="url" id="script-url" placeholder="Paste the full URL of your deployed Apps Script" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2">
+                                        </div>
+                                        <div>
+                                            <label for="sheet-url" class="block text-sm font-medium text-gray-700">Google Sheet URL</label>
+                                            <input type="url" id="sheet-url" placeholder="Paste the full URL of your Google Sheet copy" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2">
+                                        </div>
+                                        <div>
+                                            <label for="folder-url" class="block text-sm font-medium text-gray-700">Google Drive Photo Folder URL</label>
+                                            <input type="url" id="folder-url" placeholder="Paste the full URL of your photo folder" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2">
+                                        </div>
+                                        <div class="flex items-center justify-between pt-2">
+                                            <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded-lg">Save Data Sources</button>
+                                            <button type="button" data-action="reset-data-sources" class="text-sm text-gray-500 hover:text-gray-700">Reset to Default</button>
+                                        </div>
+                                    </form>
+                                </div>
+                           </div>`,
             })[pageId] || '',
             modal: (modalId, isEdit = false, data = {}) => {
                 const modalTemplates = {
@@ -113,9 +184,11 @@
                 let controlDuration;
                 if (trial.ControlFinalized && trial.FinalControlDuration != null) {
                     controlDuration = `${trial.FinalControlDuration} Days (Final)`;
-                } else {
+                } else if (trial.Date) {
                     const days = Math.floor((new Date() - new Date(trial.Date)) / (1000 * 60 * 60 * 24));
                     controlDuration = `${days < 0 ? 0 : days} Days`;
+                } else {
+                    controlDuration = 'N/A';
                 }
                 const photos = JSON.parse(trial.PhotoURLs || '[]').map(p => {
                     const proxiedUrl = p.url ? `https://images.weserv.nl/?url=${encodeURIComponent(p.url)}` : '';
@@ -133,7 +206,7 @@
                                     <div class="grid grid-cols-2 gap-x-4 text-sm text-gray-600 mt-2">
                                         <p><strong>Dosage:</strong> ${trial.Dosage || 'N/A'}</p>
                                         <p class="text-blue-600 font-semibold"><strong>Control:</strong> ${controlDuration}</p>
-                                        <p><strong>Date:</strong> ${new Date(trial.Date).toLocaleDateString()}</p>
+                                        <p><strong>Date:</strong> ${trial.Date ? new Date(trial.Date).toLocaleDateString() : 'N/A'}</p>
                                         <p class="font-semibold"><strong>Cost:</strong> ${CURRENCY_SYMBOL}${cost}</p>
                                     </div>
                                 </div>
@@ -147,17 +220,17 @@
                     </div>
                 </div>`;
             },
-            ingredients: (data = state.ingredients) => { const el = document.getElementById('ingredients-list'); if(el) el.innerHTML = `<ul class="divide-y divide-gray-200">${data.length ? data.map(ing => `<li class="py-3 flex justify-between items-center"><div><p class="font-medium">${ing.Name}</p><p class="text-sm text-gray-500">${CURRENCY_SYMBOL}${parseFloat(ing.Cost).toFixed(2)} / ${ing.Unit}</p></div><div class="flex gap-4"><button data-action="edit" data-type="ingredient" data-id="${ing.ID}" class="text-blue-600 hover:text-blue-800 font-bold">Edit</button><button data-action="delete" data-type="ingredient" data-id="${ing.ID}" class="text-red-500 hover:text-red-700 font-bold">&times;</button></div></li>`).join('') : '<p class="text-gray-500">No ingredients.</p>'}</ul>`; },
-            formulations: (data = state.formulations) => { const el = document.getElementById('formulations-list'); if(el) el.innerHTML = data.length ? data.map(form => `<div class="bg-white p-6 rounded-lg shadow-md relative"><div class="absolute top-4 right-4 flex gap-2"><button data-action="edit" data-type="formulation" data-id="${form.ID}" class="btn-secondary px-3 py-1 rounded-md text-sm">Edit</button><button data-action="delete" data-type="formulation" data-id="${form.ID}" class="text-red-500 font-bold text-xl">&times;</button></div><h3 class="font-bold text-lg">${form.Name}</h3><div class="mt-2 text-sm text-gray-600"><ul class="list-disc list-inside">${JSON.parse(form.IngredientsJSON || '[]').map(ing => `<li>${ing.name} (${ing.quantity} ${ing.unit})</li>`).join('')}</ul>${form.Notes ? `<p class="mt-2"><strong>Notes:</strong> ${form.Notes}</p>` : ''}</div><p class="mt-4 font-semibold">Cost: ${CURRENCY_SYMBOL}${parseFloat(form.EstimatedCost || 0).toFixed(2)}</p></div>`).join('') : '<p class="text-gray-500 col-span-full">No formulations found.</p>'; },
+            ingredients: (data = state.ingredients) => { const el = document.getElementById('ingredients-list'); if(el) el.innerHTML = `<ul class="divide-y divide-gray-200">${(data || []).map(ing => `<li class="py-3 flex justify-between items-center"><div><p class="font-medium">${ing.Name}</p><p class="text-sm text-gray-500">${CURRENCY_SYMBOL}${parseFloat(ing.Cost).toFixed(2)} / ${ing.Unit}</p></div><div class="flex gap-4"><button data-action="edit" data-type="ingredient" data-id="${ing.ID}" class="text-blue-600 hover:text-blue-800 font-bold">Edit</button><button data-action="delete" data-type="ingredient" data-id="${ing.ID}" class="text-red-500 hover:text-red-700 font-bold">&times;</button></div></li>`).join('') || '<p class="text-gray-500">No ingredients.</p>'}</ul>`; },
+            formulations: (data = state.formulations) => { const el = document.getElementById('formulations-list'); if(el) el.innerHTML = (data || []).map(form => `<div class="bg-white p-6 rounded-lg shadow-md relative"><div class="absolute top-4 right-4 flex gap-2"><button data-action="edit" data-type="formulation" data-id="${form.ID}" class="btn-secondary px-3 py-1 rounded-md text-sm">Edit</button><button data-action="delete" data-type="formulation" data-id="${form.ID}" class="text-red-500 font-bold text-xl">&times;</button></div><h3 class="font-bold text-lg">${form.Name}</h3><div class="mt-2 text-sm text-gray-600"><ul class="list-disc list-inside">${JSON.parse(form.IngredientsJSON || '[]').map(ing => `<li>${ing.name} (${ing.quantity} ${ing.unit})</li>`).join('')}</ul>${form.Notes ? `<p class="mt-2"><strong>Notes:</strong> ${form.Notes}</p>` : ''}</div><p class="mt-4 font-semibold">Cost: ${CURRENCY_SYMBOL}${parseFloat(form.EstimatedCost || 0).toFixed(2)}</p></div>`).join('') || '<p class="text-gray-500 col-span-full">No formulations found.</p>'; },
             trials: (data = state.trials) => {
                 const el = document.getElementById('trials-list');
                 if (!el) return;
-                el.innerHTML = data.length ? data.map(trial => render.trialCard(trial, true)).join('') : '<p class="text-gray-500">No trials found.</p>';
+                el.innerHTML = (data || []).map(trial => render.trialCard(trial, true)).join('') || '<p class="text-gray-500">No trials found.</p>';
             },
              organisations: (data = state.organisations) => {
                 const el = document.getElementById('organisations-list');
                 if (!el) return;
-                el.innerHTML = data.length ? data.map(org => {
+                el.innerHTML = (data || []).map(org => {
                     const trialDetails = (JSON.parse(org.TrialIDs || '[]')).map(trialId => state.trials.find(t => t.ID === trialId)).filter(Boolean);
                     return `<div class="bg-white p-6 rounded-lg shadow-md">
                                 <div class="flex justify-between items-start mb-4">
@@ -168,17 +241,26 @@
                                     ${trialDetails.length > 0 ? trialDetails.map(t => render.trialCard(t, false)).join('') : '<p class="text-gray-500 col-span-full">No trials in this organisation.</p>'}
                                 </div>
                             </div>`;
-                }).join('') : '<p class="text-gray-500">No organisations created yet. Go to the Trials page to group some together.</p>';
+                }).join('') || '<p class="text-gray-500">No organisations created yet. Go to the Trials page to group some together.</p>';
             },
         };
 
         async function apiCall(action, payload = {}, showOverlay = true) {
             if (showOverlay) loadingOverlay.classList.remove('hidden');
             try {
-                const res = await fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify({ action, payload }), redirect: 'follow' });
+                const fullPayload = {
+                    ...payload,
+                    spreadsheetId: state.settings.sheetId,
+                    folderId: state.settings.folderId
+                };
+
+                const res = await fetch(state.settings.scriptUrl, { method: 'POST', body: JSON.stringify({ action, payload: fullPayload }), redirect: 'follow' });
                 if (!res.ok) throw new Error(`Network error: ${res.statusText}`);
                 const result = await res.json();
-                if (result.status === 'error') throw new Error(result.message);
+                if (result.status === 'error') {
+                    console.error('Server-side error:', result.stack);
+                    throw new Error(result.message);
+                }
                 return result.data;
             } catch (error) {
                 console.error('API Error:', error);
@@ -190,6 +272,7 @@
         }
         
         function showToast(message, type = 'success') { toast.textContent = message; toast.className = `toast show ${type}`; setTimeout(() => { toast.className = toast.className.replace('show', ''); }, 3000); }
+        
         function switchPage(pageId) {
             state.currentPage = pageId;
             state.selectedTrials = [];
@@ -198,18 +281,21 @@
             document.querySelectorAll('.nav-link').forEach(link => link.classList.toggle('active', link.dataset.page === pageId));
             
             const renderFn = render[pageId];
-            if (renderFn) renderFn();
+            if (renderFn) renderFn(state[pageId]);
             
             if (pageId === 'trials') {
                 const filterSelect = mainContent.querySelector('[data-type="trial-formulation"]');
-                const formulationNames = [...new Set(state.trials.map(t => t.FormulationName))].sort();
+                const formulationNames = [...new Set((state.trials || []).map(t => t.FormulationName).filter(Boolean))].sort();
                 if(filterSelect) filterSelect.innerHTML = `<option value="">Filter by Formulation</option>${formulationNames.map(name => `<option value="${name}">${name}</option>`).join('')}`;
             }
             if (pageId === 'settings') {
-                const keyInput = document.getElementById('gemini-api-key');
-                if(keyInput) keyInput.value = state.geminiApiKey;
+                document.getElementById('gemini-api-key').value = state.geminiApiKey || '';
+                document.getElementById('script-url').value = state.settings.scriptUrl || '';
+                document.getElementById('sheet-url').value = state.settings.sheetId ? `https://docs.google.com/spreadsheets/d/${state.settings.sheetId}/` : '';
+                document.getElementById('folder-url').value = state.settings.folderId ? `https://drive.google.com/drive/folders/${state.settings.folderId}` : '';
             }
         }
+
         function openModal(id, isEdit = false, data = {}) {
             const content = templates.modal(id, isEdit, data);
             if (!content) {
@@ -222,6 +308,7 @@
             }
         }
         function closeModal() { modalContainer.innerHTML = ''; }
+
         function showConfirmation(title, message, onConfirm) {
             openModal('confirm');
             const modal = document.getElementById('confirm-modal');
@@ -264,7 +351,7 @@
                     const investigatorList = document.getElementById('investigator-list');
                     if (investigatorList) {
                         const uniqueInvestigators = [...new Set(state.trials.map(t => t.InvestigatorName).filter(Boolean))];
-                        investigatorList.innerHTML = uniqueInvestigators.map(name => `<option value="${name}"></option>`).join('');
+                        investigatorList.innerHTML = uniqueInvestigators.map(name => `<option value="${name}"></option>`).join('')
                     }
 
                 } else if (type === 'formulation') {
@@ -274,7 +361,7 @@
         }
 
         function handleEdit(type, id) {
-             const data = state[type + 's'].find(item => item.ID == id);
+             const data = state[type + 's'].find(item => item.ID === id);
              if (data) {
                  openModal(type, true);
                  setTimeout(() => populateForm(document.getElementById(`${type}-form`), data), 50);
@@ -290,47 +377,51 @@
                     }
                 }
                 loadingOverlay.classList.remove('hidden');
-                if (await apiCall(`delete${type.charAt(0).toUpperCase() + type.slice(1)}`, { id }, false)) {
-                    state[type+'s'] = state[type+'s'].filter(item => item.ID != id);
-                    if (type === 'ingredient') {
-                        calculateAllFormulationCosts();
-                        render.formulations();
-                    }
-                    render[type+'s']();
-                    showToast(`${type.charAt(0).toUpperCase() + type.slice(1)} deleted.`);
-                }
+                await apiCall(`delete${type.charAt(0).toUpperCase() + type.slice(1)}`, { id }, false);
+                await initializeApp(false); // Reload all data
                 loadingOverlay.classList.add('hidden');
+                showToast(`${type.charAt(0).toUpperCase() + type.slice(1)} deleted.`);
             });
         }
         
-        function calculateAllFormulationCosts() {
-            if (!state.formulations.length || !state.ingredients.length) return;
-            state.formulations.forEach(form => {
-                const ingredientsInFormulation = JSON.parse(form.IngredientsJSON || '[]').map(ing => ({...ing, quantity: parseFloat(ing.quantity) || 0}));
-                form.EstimatedCost = ingredientsInFormulation.reduce((acc, currentIng) => {
-                    const ingredientDetails = state.ingredients.find(i => i.ID === currentIng.id);
-                    if (!ingredientDetails) return acc;
+        function calculateFormulationCost(ingredients) {
+            if (!ingredients || !state.ingredients) return 0;
+            return ingredients.reduce((acc, currentIng) => {
+                const ingredientDetails = state.ingredients.find(i => i.ID === currentIng.id);
+                if (!ingredientDetails) return acc;
+                const costPerBaseUnit = parseFloat(ingredientDetails.Cost);
+                if(isNaN(costPerBaseUnit)) return acc;
 
-                    const costPerBaseUnit = parseFloat(ingredientDetails.Cost);
-                    const baseUnit = ingredientDetails.Unit.toLowerCase(); // 'l' or 'kg'
-                    const usedUnit = currentIng.unit.toLowerCase(); // 'ml', 'l', 'gm', 'kg'
-                    let quantityInBaseUnit = currentIng.quantity;
+                const baseUnit = ingredientDetails.Unit ? ingredientDetails.Unit.toLowerCase() : '';
+                const usedUnit = currentIng.unit ? currentIng.unit.toLowerCase() : '';
 
-                    if ((baseUnit === 'l' && usedUnit === 'ml') || (baseUnit === 'kg' && usedUnit === 'gm')) {
-                        quantityInBaseUnit /= 1000;
-                    } else if ((baseUnit === 'ml' && usedUnit === 'l') || (baseUnit === 'gm' && usedUnit === 'kg')) {
-                        quantityInBaseUnit *= 1000;
-                    }
-
-                    return acc + (costPerBaseUnit * quantityInBaseUnit);
-                }, 0);
-            });
+                let quantityInBaseUnit = parseFloat(currentIng.quantity) || 0;
+                if ((baseUnit === 'l' && usedUnit === 'ml') || (baseUnit === 'kg' && usedUnit === 'gm')) {
+                    quantityInBaseUnit /= 1000;
+                } else if ((baseUnit === 'ml' && usedUnit === 'l') || (baseUnit === 'gm' && usedUnit === 'kg')) {
+                    quantityInBaseUnit *= 1000;
+                } else if (baseUnit !== usedUnit) {
+                    return acc;
+                }
+                return acc + (costPerBaseUnit * quantityInBaseUnit);
+            }, 0);
         }
 
         async function handleFormSubmit(form) {
             if (!form) return;
             const formId = form.getAttribute('id');
-            if (formId === 'settings-form') { const newKey = document.getElementById('gemini-api-key').value; state.geminiApiKey = newKey; localStorage.setItem('geminiApiKey', newKey); showToast('API Key saved.'); return; }
+
+            if (formId === 'settings-form') { 
+                state.geminiApiKey = document.getElementById('gemini-api-key').value; 
+                localStorage.setItem('geminiApiKey', state.geminiApiKey); 
+                showToast('API Key saved.'); 
+                return; 
+            }
+             if (formId === 'data-source-form') {
+                handleDataSourceSave(form);
+                return;
+            }
+
             if (formId === 'ai-form') { handleAiQuery(document.getElementById('ai-input').value); form.reset(); return; }
             if (formId === 'organise-form') { handleOrganiseSubmit(form); return; }
 
@@ -356,7 +447,7 @@
                     const sel = document.getElementById('trial-formulation');
                     if (!sel || !sel.options[sel.selectedIndex] || !sel.value) { throw new Error('Please select a formulation.'); }
                     
-                    payload = { ...Object.fromEntries(new FormData(form)), photoURLs: allPhotoURLs, formulationName: sel.options[sel.selectedIndex].text };
+                    payload = { ...Object.fromEntries(new FormData(form)), photoURLs: allPhotoURLs };
                     if(isUpdate) payload.id = id;
                     
                     const controlFinalized = form.querySelector('#control-finalized').checked;
@@ -365,44 +456,42 @@
                         const days = Math.floor((new Date() - new Date(payload.date)) / (1000 * 60 * 60 * 24));
                         payload.finalControlDuration = days < 0 ? 0 : days;
                     }
+                    
+                    await apiCall(action, payload, false);
+                    
                 } else if (type === 'formulation') {
                     const formName = form.querySelector('input[name="name"]').value.trim();
-                    if (!isUpdate) {
-                        const isDuplicate = state.formulations.some(f => f.Name.toLowerCase() === formName.toLowerCase());
-                        if (isDuplicate) {
-                            throw new Error(`Formulation name "${formName}" already exists.`);
-                        }
+                     if (!isUpdate && state.formulations.some(f => f.Name && f.Name.toLowerCase() === formName.toLowerCase())) {
+                        throw new Error(`Formulation name "${formName}" already exists.`);
                     }
                     const ingredients = [...document.querySelectorAll('.formulation-ingredient-row')].map(r => {
                         const selector = r.querySelector('.ingredient-selector');
-                        if (!selector || selector.value === "") return null;
-                        return { id: selector.value, name: selector.selectedOptions[0].text, quantity: r.querySelector('.ingredient-quantity').value, unit: r.querySelector('.ingredient-unit-selector').value };
-                    }).filter(i => i && i.id && i.quantity);
-                    if (!ingredients.length) { throw new Error('Add at least one ingredient.'); }
+                        if (!selector || !selector.value) return null;
+                         return { 
+                            id: selector.value,
+                            name: selector.selectedOptions[0].text, 
+                            quantity: r.querySelector('.ingredient-quantity').value, 
+                            unit: r.querySelector('.ingredient-unit-selector').value 
+                        };
+                    }).filter(Boolean);
+
+                    if (ingredients.length === 0) throw new Error('Add at least one ingredient.');
+                    
                     payload = { ...Object.fromEntries(new FormData(form)), ingredients };
                     if(isUpdate) payload.id = id;
+                    
+                    await apiCall(action, payload, false);
+
                 } else { // ingredient
                     payload = Object.fromEntries(new FormData(form));
                     if(isUpdate) payload.id = id;
+                    await apiCall(action, payload, false);
                 }
+                
+                await initializeApp(false); // Reload all data for consistency
+                closeModal();
+                showToast(`${type.charAt(0).toUpperCase() + type.slice(1)} saved.`);
 
-                const response = await apiCall(action, payload, false);
-                if (response) {
-                    if (isUpdate) {
-                        const index = state[type + 's'].findIndex(item => item.ID == response.ID);
-                        if (index > -1) state[type + 's'][index] = response;
-                    } else {
-                        state[type + 's'].unshift(response);
-                    }
-                    if (type === 'formulation' || type === 'ingredient') {
-                        await initializeApp(false);
-                    }
-                    closeModal();
-                    showToast(`${type.charAt(0).toUpperCase() + type.slice(1)} saved.`);
-                    switchPage(state.currentPage);
-                } else {
-                    throw new Error(`Failed to save ${type}. Please try again.`);
-                }
             } catch (error) {
                 console.error(`Error saving ${type}:`, error);
                 showToast(error.message, 'error');
@@ -426,21 +515,11 @@
 
             loadingOverlay.classList.remove('hidden');
             if (newOrganisationName) {
-                // Create new and add
-                const response = await apiCall('addOrganisation', { name: newOrganisationName, trialIds }, false);
-                if (response) {
-                    state.organisations.push(response);
-                    showToast(`Created "${newOrganisationName}" and added ${trialIds.length} trial(s).`);
-                }
+                await apiCall('addOrganisation', { name: newOrganisationName, trialIds }, false);
             } else {
-                // Add to existing
-                const response = await apiCall('updateOrganisation', { id: organisationId, trialIds }, false);
-                 if (response) {
-                    const index = state.organisations.findIndex(o => o.ID === organisationId);
-                    if (index > -1) state.organisations[index] = response;
-                    showToast(`Added ${trialIds.length} trial(s) to the organisation.`);
-                }
+                await apiCall('updateOrganisation', { id: organisationId, trialIds }, false);
             }
+            await initializeApp(false); // Reload all data
             loadingOverlay.classList.add('hidden');
             closeModal();
             switchPage('trials');
@@ -483,7 +562,7 @@
         }
 
         function applyFilters() {
-            let filteredTrials = [...state.trials];
+            let filteredTrials = [...(state.trials || [])];
             
             const searchTerm = document.querySelector('[data-type="trial-search"]').value.toLowerCase();
             if (searchTerm) {
@@ -508,6 +587,48 @@
             render.trials(filteredTrials);
         }
         
+        async function handleBulkIngredientsCost() {
+            const text = document.getElementById('bulk-ingredients-cost-input').value;
+            if (!text) return showToast('Input cannot be empty.', 'error');
+
+            loadingOverlay.classList.remove('hidden');
+            try {
+                const entries = text.split(',').map(s => s.trim()).filter(Boolean);
+                if (entries.length === 0) throw new Error("No valid entries found.");
+
+                const ingredientPromises = entries.map(entry => {
+                    const match = entry.match(/^(.*?)\s+([\d\.]+)\s+(\w+)$/);
+                    if (!match) {
+                        console.warn(`Skipping invalid entry: "${entry}"`);
+                        return null; // Skip invalid entries
+                    }
+                    const [, name, cost, unit] = match.map(s => s.trim());
+                    
+                    if (state.ingredients.some(ing => ing.Name && ing.Name.toLowerCase() === name.toLowerCase())) {
+                        console.warn(`Skipping duplicate ingredient: "${name}"`);
+                        return null;
+                    }
+                    
+                    return apiCall('addIngredient', { name, cost, unit }, false);
+                });
+
+                const results = await Promise.all(ingredientPromises.filter(Boolean));
+                const addedCount = results.filter(Boolean).length;
+
+                if (addedCount > 0) {
+                    showToast(`${addedCount} new ingredient(s) added successfully! Reloading...`, 'success');
+                    await initializeApp(false);
+                } else {
+                    showToast('No new ingredients were added. Check for duplicates or invalid formatting.', 'error');
+                }
+                document.getElementById('bulk-ingredients-cost-input').value = '';
+            } catch (error) {
+                showToast(`Error adding ingredients: ${error.message}`, 'error');
+            } finally {
+                loadingOverlay.classList.add('hidden');
+            }
+        }
+        
         function handleBulkIngredients() {
             const text = document.getElementById('bulk-ingredients-input').value;
             const container = document.getElementById('formulation-ingredients-container');
@@ -526,7 +647,7 @@
                 if (!match) return;
 
                 const [, name, quantity, unit] = match;
-                const foundIngredient = state.ingredients.find(ing => ing.Name.toLowerCase() === name.trim().toLowerCase());
+                const foundIngredient = state.ingredients.find(ing => ing.Name && ing.Name.toLowerCase() === name.trim().toLowerCase());
 
                 if (foundIngredient) {
                     addFormulationIngredientRow({ id: foundIngredient.ID, quantity: quantity, unit: unit.trim() });
@@ -555,30 +676,14 @@
             }
         }
         function updateFormulationCost() { 
-            const total = [...document.querySelectorAll('.formulation-ingredient-row')].reduce((acc, row) => {
-                const sel = row.querySelector('.ingredient-selector');
-                const qty = parseFloat(row.querySelector('.ingredient-quantity').value) || 0;
-                const selectedUnit = row.querySelector('.ingredient-unit-selector').value;
-                if (!sel.value || !sel.selectedOptions[0].dataset.cost) return acc;
-
-                const ingredientDetails = state.ingredients.find(i => i.ID === sel.value);
-                if (!ingredientDetails) return acc;
-
-                const costPerBaseUnit = parseFloat(ingredientDetails.Cost);
-                const baseUnit = ingredientDetails.Unit.toLowerCase();
-                const usedUnit = selectedUnit.toLowerCase();
-                
-                let quantityInBaseUnit = qty;
-                if ((baseUnit === 'l' && usedUnit === 'ml') || (baseUnit === 'kg' && usedUnit === 'gm')) {
-                    quantityInBaseUnit /= 1000;
-                } else if ((baseUnit === 'ml' && usedUnit === 'l') || (baseUnit === 'gm' && usedUnit === 'kg')) {
-                     quantityInBaseUnit *= 1000;
-                }
-                // If units don't match for conversion (e.g. L and gm), we assume direct cost which might be incorrect but prevents errors.
-                
-                return acc + (costPerBaseUnit * quantityInBaseUnit);
-            }, 0); 
-            document.getElementById('formulation-total-cost').textContent = `${CURRENCY_SYMBOL}${total.toFixed(2)}`; 
+            const ingredients = [...document.querySelectorAll('.formulation-ingredient-row')].map(r => {
+                const selector = r.querySelector('.ingredient-selector');
+                if (!selector || selector.value === "") return null;
+                return { id: selector.value, quantity: r.querySelector('.ingredient-quantity').value, unit: r.querySelector('.ingredient-unit-selector').value };
+            }).filter(Boolean);
+            
+            const total = calculateFormulationCost(ingredients);
+            document.getElementById('formulation-total-cost').textContent = `${CURRENCY_SYMBOL}${total.toFixed(2)}`;
         }
 
         function handlePhotoSelection(event) { state.photoQueue = [...event.target.files]; if(state.photoQueue.length > 0) processPhotoQueue(); }
@@ -601,22 +706,40 @@
         async function fetchWeather() {
             const form = document.getElementById('trial-form');
             if (!form) return;
-            showToast('Fetching current weather...', 'success');
-            try {
-                // Using Open-Meteo API, no key required. Location is pre-set for Bengaluru.
-                const response = await fetch('https://api.open-meteo.com/v1/forecast?latitude=12.97&longitude=77.59&current=temperature_2m,relative_humidity_2m,rain,wind_speed_10m');
-                if (!response.ok) throw new Error('Could not fetch weather data.');
-                const weather = await response.json();
-                const current = weather.current;
-                
-                form.querySelector('[name="temperature"]').value = current.temperature_2m;
-                form.querySelector('[name="humidity"]').value = current.relative_humidity_2m;
-                form.querySelector('[name="windspeed"]').value = current.wind_speed_10m;
-                form.querySelector('[name="rain"]').value = current.rain;
-                showToast('Weather data populated.', 'success');
-            } catch (error) {
-                console.error("Weather fetch error:", error);
-                showToast(error.message, 'error');
+            showToast('Fetching weather for your location...', 'success');
+
+            const fillWeatherData = async (lat, lon) => {
+                try {
+                    const response = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,rain,wind_speed_10m`);
+                    if (!response.ok) throw new Error('Could not fetch weather data.');
+                    const weather = await response.json();
+                    const current = weather.current;
+                    
+                    form.querySelector('[name="temperature"]').value = current.temperature_2m;
+                    form.querySelector('[name="humidity"]').value = current.relative_humidity_2m;
+                    form.querySelector('[name="windspeed"]').value = current.wind_speed_10m;
+                    form.querySelector('[name="rain"]').value = current.rain;
+                    showToast('Weather data populated.', 'success');
+                } catch (error) {
+                    console.error("Weather fetch error:", error);
+                    showToast(error.message, 'error');
+                }
+            };
+            
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        fillWeatherData(position.coords.latitude, position.coords.longitude);
+                    },
+                    (error) => {
+                        console.warn("Geolocation error:", error.message);
+                        showToast('Could not get location. Using default.', 'error');
+                        fillWeatherData(12.97, 77.59); // Default to Bengaluru
+                    }
+                );
+            } else {
+                showToast('Geolocation not supported. Using default.', 'error');
+                fillWeatherData(12.97, 77.59); // Default to Bengaluru
             }
         }
 
@@ -634,7 +757,6 @@
             }
         }
         
-        // --- DATA MANAGEMENT & EXPORT FUNCTIONS ---
         function exportJson() {
             const dataToExport = {
                 ingredients: state.ingredients,
@@ -707,37 +829,18 @@
                     showConfirmation('Overwrite Data?', 'Importing this file will overwrite all current data. Continue?', async () => {
                         loadingOverlay.classList.remove('hidden');
                         try {
-                            showToast('Step 1/5: Clearing all existing data...', 'success');
                             await clearAllData(false);
-
-                            showToast('Step 2/5: Importing ingredients...', 'success');
-                            for (const item of data.ingredients) { 
-                                if (await apiCall('addIngredient', item, false) === null) throw new Error('Failed to import an ingredient.');
-                            }
-
-                            showToast('Step 3/5: Importing formulations...', 'success');
-                            for (const item of data.formulations) { 
-                                if (await apiCall('addFormulation', { ...item, ingredients: JSON.parse(item.IngredientsJSON || '[]') }, false) === null) throw new Error('Failed to import a formulation.');
-                            }
-
-                            showToast('Step 4/5: Importing trials...', 'success');
-                            for (const item of data.trials) { 
-                                if (await apiCall('addTrial', item, false) === null) throw new Error('Failed to import a trial.');
-                            }
-
+                            for (const item of data.ingredients) { await apiCall('addIngredient', item, false); }
+                            for (const item of data.formulations) { await apiCall('addFormulation', { ...item, ingredients: JSON.parse(item.IngredientsJSON || '[]') }, false); }
+                            for (const item of data.trials) { await apiCall('addTrial', item, false); }
                             if (data.organisations && data.organisations.length > 0) {
-                                showToast('Step 5/5: Importing organisations...', 'success');
-                                for (const item of data.organisations) { 
-                                    if (await apiCall('addOrganisation', { ...item, trialIds: JSON.parse(item.TrialIDs || '[]') }, false) === null) throw new Error('Failed to import an organisation.');
-                                }
+                                for (const item of data.organisations) { await apiCall('addOrganisation', { ...item, trialIds: JSON.parse(item.TrialIDs || '[]') }, false); }
                             }
-
-                            showToast('Reloading application...', 'success');
                             await initializeApp(false);
                             showToast('Data imported successfully!', 'success');
                         } catch (error) {
                             showToast(`Import failed: ${error.message}`, 'error');
-                            await initializeApp(false); // Reload app to show partial import if any
+                            await initializeApp(false); 
                         } finally {
                             loadingOverlay.classList.add('hidden');
                         }
@@ -751,13 +854,12 @@
             const clearAction = async () => {
                 loadingOverlay.classList.remove('hidden');
                 showToast('Deleting all data...', 'success');
-                // Delete in reverse order of dependency
-                for (const id of state.organisations.map(o => o.ID)) { await apiCall('deleteOrganisation', { id }, false); }
-                for (const id of state.trials.map(t => t.ID)) { await apiCall('deleteTrial', { id }, false); }
-                for (const id of state.formulations.map(f => f.ID)) { await apiCall('deleteFormulation', { id }, false); }
-                for (const id of state.ingredients.map(i => i.ID)) { await apiCall('deleteIngredient', { id }, false); }
+                for (const id of (state.organisations || []).map(o => o.ID)) { await apiCall('deleteOrganisation', { id }, false); }
+                for (const id of (state.trials || []).map(t => t.ID)) { await apiCall('deleteTrial', { id }, false); }
+                for (const id of (state.formulations || []).map(f => f.ID)) { await apiCall('deleteFormulation', { id }, false); }
+                for (const id of (state.ingredients || []).map(i => i.ID)) { await apiCall('deleteIngredient', { id }, false); }
                 
-                state.trials = []; state.formulations = []; state.ingredients = []; state.organisations = [];
+                state = { ...state, trials: [], formulations: [], ingredients: [], organisations: [] };
                 switchPage(state.currentPage);
                 showToast('All data has been cleared.', 'success');
                 loadingOverlay.classList.add('hidden');
@@ -777,107 +879,139 @@
             showToast('Generating PDF...', 'success');
             const { jsPDF } = window.jspdf;
             const doc = new jsPDF({ orientation });
-            
-            doc.setFontSize(18);
-            doc.text(`Herbicide Trial Report: ${trial.FormulationName}`, 14, 22);
 
-            const data = [
-                ['Investigator', String(trial.InvestigatorName || 'N/A')],
-                ['Dosage', String(trial.Dosage || 'N/A')],
-                ['Weed Species', String(trial.WeedSpecies || 'N/A')],
-                ['Date', new Date(trial.Date).toLocaleDateString()],
-            ];
+            const primaryColor = [22, 160, 133];
+            const secondaryColor = [44, 62, 80];
+            let finalY = 0;
+
+            doc.setFillColor(...primaryColor);
+            doc.rect(0, 0, doc.internal.pageSize.width, 25, 'F');
+            doc.setFontSize(22);
+            doc.setTextColor(255, 255, 255);
+            doc.setFont(undefined, 'bold');
+            doc.text("Herbicide Trial Report", doc.internal.pageSize.width / 2, 15, { align: 'center' });
             
-            let startY = 30;
-            doc.setFontSize(11);
-            data.forEach(row => {
-                doc.setFont(undefined, 'bold');
-                doc.text(row[0] + ':', 14, startY);
-                doc.setFont(undefined, 'normal');
-                doc.text(row[1], 50, startY);
-                startY += 7;
+            doc.setFontSize(16);
+            doc.setTextColor(...secondaryColor);
+            doc.text(trial.FormulationName, 14, 35);
+
+            const trialBody = [
+                [{content: 'Investigator:', styles: {fontStyle: 'bold'}}, trial.InvestigatorName || 'N/A'],
+                [{content: 'Date:', styles: {fontStyle: 'bold'}}, new Date(trial.Date).toLocaleDateString()],
+                [{content: 'Dosage:', styles: {fontStyle: 'bold'}}, trial.Dosage || 'N/A'],
+                [{content: 'Weed Species:', styles: {fontStyle: 'bold'}}, trial.WeedSpecies || 'N/A'],
+            ];
+             const weatherBody = [
+                [{content: 'Temperature:', styles: {fontStyle: 'bold'}}, `${trial.Temperature || 'N/A'}°C`],
+                [{content: 'Humidity:', styles: {fontStyle: 'bold'}}, `${trial.Humidity || 'N/A'}%`],
+                [{content: 'Wind:', styles: {fontStyle: 'bold'}}, `${trial.Windspeed || 'N/A'} km/h`],
+                [{content: 'Rain:', styles: {fontStyle: 'bold'}}, `${trial.Rain || 'N/A'} mm`],
+            ];
+
+            doc.autoTable({
+                startY: 42,
+                head: [['Trial Information', '']],
+                body: trialBody,
+                theme: 'striped',
+                columnStyles: { 0: { cellWidth: 40 } },
+                headStyles: { fillColor: secondaryColor },
+                didDrawPage: (data) => { finalY = data.cursor.y; }
             });
             
             if (trial.Temperature) {
-                const weatherData = [
-                    ['Temperature', `${trial.Temperature || 'N/A'}°C`],
-                    ['Humidity', `${trial.Humidity || 'N/A'}%`],
-                    ['Windspeed', `${trial.Windspeed || 'N/A'} km/h`],
-                    ['Rain', `${trial.Rain || 'N/A'} mm`],
-                ];
-                startY += 5; 
-                doc.setFont(undefined, 'bold');
-                doc.text('Weather Conditions:', 14, startY);
-                startY += 7;
-                weatherData.forEach(row => {
-                    doc.setFont(undefined, 'bold');
-                    doc.text(row[0] + ':', 14, startY);
-                    doc.setFont(undefined, 'normal');
-                    doc.text(row[1], 50, startY);
-                    startY += 7;
+                 doc.autoTable({
+                    startY: finalY + 2,
+                    head: [['Weather Conditions', '']],
+                    body: weatherBody,
+                    theme: 'striped',
+                    columnStyles: { 0: { cellWidth: 40 } },
+                    headStyles: { fillColor: secondaryColor },
+                    didDrawPage: (data) => { finalY = data.cursor.y; }
                 });
             }
 
-            const textBlock = (title, content) => {
-                startY += 5;
-                doc.setFont(undefined, 'bold');
-                doc.text(title, 14, startY);
-                startY += 6;
-                doc.setFont(undefined, 'normal');
-                const splitText = doc.splitTextToSize(String(content || 'N/A'), orientation === 'l' ? 270 : 180);
-                doc.text(splitText, 14, startY);
-                startY += (splitText.length * 5) + 5;
+            const addTextBlock = (title, content) => {
+                finalY += 10;
+                doc.setFontSize(14);
+                doc.setTextColor(...secondaryColor);
+                doc.text(title, 14, finalY);
+                finalY += 6;
+                doc.setFontSize(10);
+                doc.setTextColor(80);
+                const splitText = doc.splitTextToSize(String(content || 'N/A'), doc.internal.pageSize.width - 28);
+                doc.text(splitText, 14, finalY);
+                finalY += (splitText.length * 4) + 5;
             };
-
-            textBlock('Conclusion:', trial.Conclusion);
-            textBlock('Notes:', trial.Notes);
+            
+            addTextBlock('Conclusion', trial.Conclusion);
+            addTextBlock('Notes', trial.Notes);
 
             if (withIngredients) {
                 const formulation = state.formulations.find(f => f.ID === trial.FormulationID);
                 if (formulation && formulation.IngredientsJSON) {
                     const ingredients = JSON.parse(formulation.IngredientsJSON || '[]');
-                    doc.autoTable({
-                        startY: startY,
-                        head: [['Ingredient', 'Quantity', 'Unit']],
-                        body: ingredients.map(ing => [ing.name, ing.quantity, ing.unit]),
-                        theme: 'striped',
-                        headStyles: { fillColor: [22, 160, 133] },
-                    });
-                    startY = doc.autoTable.previous.finalY + 10;
+                    if (ingredients.length > 0) {
+                        doc.autoTable({
+                            startY: finalY + 5,
+                            head: [['Ingredient', 'Quantity', 'Unit']],
+                            body: ingredients.map(ing => [String(ing.name), String(ing.quantity), String(ing.unit)]),
+                            theme: 'grid',
+                            headStyles: { fillColor: primaryColor },
+                             didDrawPage: (data) => { finalY = data.cursor.y; }
+                        });
+                    } else {
+                         doc.text('No ingredients listed for this formulation.', 14, finalY + 10);
+                         finalY += 15;
+                    }
                 } else {
-                    startY += 10;
-                    doc.text('Ingredient details for this formulation are not available.', 14, startY);
-                    startY += 10;
+                    doc.text('Ingredient details for this formulation are not available.', 14, finalY + 10);
+                    finalY += 15;
                 }
             }
 
             const photos = JSON.parse(trial.PhotoURLs || '[]');
             if (photos.length > 0) {
+                finalY += 10;
                 doc.setFontSize(14);
-                doc.text('Photos:', 14, startY);
-                startY += 8;
-                const photoWidth = orientation === 'l' ? 65 : 85;
-                const photoHeight = orientation === 'l' ? 50 : 65;
+                doc.setTextColor(...secondaryColor);
+                doc.text('Photos', 14, finalY);
+                finalY += 8;
+
+                const photoWidth = 85;
+                const photoHeight = 65;
                 let xPos = 14;
+
                 for (const photo of photos) {
-                    const imgData = await getImageAsBase64(photo.url);
-                    if (imgData) {
-                        if (xPos + photoWidth > doc.internal.pageSize.width - 14) {
-                            xPos = 14;
-                            startY += photoHeight + 10;
+                    if (photo.url) {
+                        const imgData = await getImageAsBase64(photo.url);
+                        if (imgData) {
+                            if (finalY + photoHeight > doc.internal.pageSize.height - 20) {
+                                doc.addPage();
+                                finalY = 20;
+                            }
+                            doc.addImage(imgData, 'JPEG', xPos, finalY, photoWidth, photoHeight);
+                            doc.setFontSize(9);
+                            doc.setTextColor(100);
+                            doc.text(photo.label || '', xPos + photoWidth / 2, finalY + photoHeight + 4, { align: 'center' });
+                           
+                            xPos += photoWidth + 5;
+                            if (xPos + photoWidth > doc.internal.pageSize.width - 14) {
+                                xPos = 14;
+                                finalY += photoHeight + 15;
+                            }
                         }
-                        if (startY + photoHeight > doc.internal.pageSize.height - 20) {
-                            doc.addPage();
-                            startY = 20;
-                            xPos = 14;
-                        }
-                        doc.addImage(imgData, 'JPEG', xPos, startY, photoWidth, photoHeight);
-                        doc.setFontSize(9);
-                        doc.text(photo.label || '', xPos + photoWidth / 2, startY + photoHeight + 4, { align: 'center' });
-                        xPos += photoWidth + 5;
                     }
                 }
             }
+
+            const pageCount = doc.internal.getNumberOfPages();
+            for(let i = 1; i <= pageCount; i++) {
+                doc.setPage(i);
+                doc.setFontSize(8);
+                doc.setTextColor(150);
+                doc.text(`Page ${i} of ${pageCount}`, doc.internal.pageSize.width / 2, doc.internal.pageSize.height - 10, { align: 'center' });
+            }
+
 
             doc.save(`Trial_${trial.FormulationName}_${trial.Date}.pdf`);
         }
@@ -904,11 +1038,13 @@
 
             const photos = JSON.parse(trial.PhotoURLs || '[]');
             for (const photo of photos) {
-                const imgData = await getImageAsBase64(photo.url);
-                if (imgData) {
-                    let photoSlide = pptx.addSlide();
-                    photoSlide.addText(photo.label || 'Trial Photo', { x: 0.5, y: 0.25, w: 5, h: 0.5, fontSize: 18, bold: true });
-                    photoSlide.addImage({ data: imgData, x: 1, y: 1, w: 8, h: 4.5 });
+                if (photo.url) {
+                    const imgData = await getImageAsBase64(photo.url);
+                    if (imgData) {
+                        let photoSlide = pptx.addSlide();
+                        photoSlide.addText(photo.label || 'Trial Photo', { x: 0.5, y: 0.25, w: '90%', h: 0.5, fontSize: 18, bold: true, align: 'center' });
+                        photoSlide.addImage({ data: imgData, x: 1, y: 1, w: 8, h: 4.5 });
+                    }
                 }
             }
             
@@ -967,11 +1103,18 @@
                     'clear-data': () => clearAllData(true),
                     'add-ingredient-row': addFormulationIngredientRow,
                     'apply-bulk-add': handleBulkIngredients,
+                    'apply-bulk-add-cost': handleBulkIngredientsCost,
                     'close-modal': closeModal,
                     'cancel-crop': closeCropper,
                     'crop-image': cropAndSaveImage,
                     'remove-ingredient-row': () => { target.closest('.formulation-ingredient-row').remove(); updateFormulationCost(); },
-                    'remove-photo': () => { state.croppedPhotosData.splice(index, 1); updatePhotoPreview(); }
+                    'remove-photo': () => { state.croppedPhotosData.splice(index, 1); updatePhotoPreview(); },
+                    'reset-data-sources': () => {
+                        localStorage.removeItem('appSettings');
+                        loadSettings();
+                        showToast('Data sources reset to default.');
+                        initializeApp();
+                    }
                 };
                 if (actions[action]) {
                      e.preventDefault();
@@ -980,19 +1123,16 @@
                     console.warn(`No action handler for: ${action}`);
                 }
             });
-            document.body.addEventListener('change', e => {
+            document.body.addEventListener('input', e => {
                 const target = e.target;
                  if (target.id === 'import-file-input') {
                     document.querySelector('[data-action="import-json"]').disabled = !target.files.length;
                 }
-            });
-            document.body.addEventListener('input', e => {
-                const target = e.target;
                 if (target.matches('[data-action="filter"]')) applyFilters();
                 if (target.matches('[data-action="select-trial"]')) {
                     const { id } = target.dataset;
                     if (target.checked) {
-                        state.selectedTrials.push(id);
+                        if (!state.selectedTrials.includes(id)) state.selectedTrials.push(id);
                     } else {
                         state.selectedTrials = state.selectedTrials.filter(trialId => trialId !== id);
                     }
@@ -1008,39 +1148,181 @@
             });
         }
         
+        function normalizeIDs(dataArray) {
+            if (!Array.isArray(dataArray)) return [];
+            return dataArray.map(item => {
+                const newItem = { ...item };
+                if (newItem.ID !== undefined && newItem.ID !== null) newItem.ID = String(newItem.ID);
+                if (newItem.FormulationID !== undefined && newItem.FormulationID !== null) newItem.FormulationID = String(newItem.FormulationID);
+                return newItem;
+            });
+        }
+
+        function loadSettings() {
+            const savedSettings = localStorage.getItem('appSettings');
+            if (savedSettings) {
+                state.settings = JSON.parse(savedSettings);
+            } else {
+                state.settings = { scriptUrl: DEFAULT_SCRIPT_URL, sheetId: null, folderId: null };
+            }
+        }
+        
+        function handleDataSourceSave(form) {
+            const scriptUrl = form.querySelector('#script-url').value.trim();
+            const sheetUrl = form.querySelector('#sheet-url').value.trim();
+            const folderUrl = form.querySelector('#folder-url').value.trim();
+
+            const sheetId = (sheetUrl.match(/spreadsheets\/d\/([a-zA-Z0-9-_]+)/) || [])[1] || null;
+            const folderId = (folderUrl.match(/folders\/([a-zA-Z0-9-_]+)/) || [])[1] || null;
+
+            if(!scriptUrl) return showToast('Apps Script URL is required.', 'error');
+            
+            state.settings = { scriptUrl, sheetId, folderId };
+            localStorage.setItem('appSettings', JSON.stringify(state.settings));
+            showToast('Data sources saved! Reloading app...');
+            setTimeout(() => window.location.reload(), 1500);
+        }
+        
+        function handleCredentialResponse(response) {
+            // User has successfully signed in. Now show them the next step to grant permissions.
+            document.getElementById('google-signin-button').classList.add('hidden');
+            document.getElementById('setup-section').classList.remove('hidden');
+            showToast('Successfully signed in! Please click below to create your backend.', 'success');
+        }
+
+        function createBackend() {
+            // This function is now the trigger for the permission request popup.
+            const tokenClient = google.accounts.oauth2.initTokenClient({
+                client_id: GOOGLE_CLIENT_ID,
+                scope: 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/userinfo.profile',
+                callback: async (tokenResponse) => {
+                    // This callback runs after the user interacts with the popup.
+                    if (tokenResponse && tokenResponse.access_token) {
+                        state.auth.token = tokenResponse.access_token;
+                        
+                        // Now that we have the token, proceed with creating the backend files.
+                        showToast('Permissions granted! Creating your personal backend...', 'success');
+                        loadingOverlay.classList.remove('hidden');
+                        try {
+                            const result = await apiCall('createNewBackend', { accessToken: state.auth.token }, false);
+                            if (result && result.newSheetId && result.newFolderId) {
+                                state.settings = {
+                                    scriptUrl: state.settings.scriptUrl,
+                                    sheetId: result.newSheetId,
+                                    folderId: result.newFolderId
+                                };
+                                localStorage.setItem('appSettings', JSON.stringify(state.settings));
+                                showToast('Backend created successfully! Reloading app...', 'success');
+                                setTimeout(() => window.location.reload(), 2000);
+                            } else {
+                                throw new Error('Failed to get new file IDs from the server.');
+                            }
+                        } catch (error) {
+                            console.error('Backend creation failed:', error);
+                            showToast(error.message, 'error');
+                        } finally {
+                            loadingOverlay.classList.add('hidden');
+                        }
+
+                    } else {
+                        showToast('Authorization failed. Could not get permission to access Google Drive.', 'error');
+                    }
+                },
+            });
+
+            // This triggers the Google popup. Because it's called directly from the button's click handler, it won't be blocked.
+            tokenClient.requestAccessToken();
+        }
+
         async function initializeApp(showOverlay = true) {
             if(showOverlay) loadingOverlay.classList.remove('hidden');
             try {
-                state.geminiApiKey = localStorage.getItem('geminiApiKey') || '';
-                const [ingredients, formulations, trials, organisations] = await Promise.all([
-                    apiCall('getIngredients', {}, false),
-                    apiCall('getFormulations', {}, false),
-                    apiCall('getTrials', {}, false),
-                    apiCall('getOrganisations', {}, false)
-                ]);
+                loadSettings();
+                
+                if (!state.settings.sheetId || !state.settings.folderId) {
+                    appContainer.classList.add('hidden');
+                    onboardingContainer.classList.remove('hidden');
+                    
+                    const signInButtonContainer = document.getElementById('google-signin-button');
 
-                if (ingredients === null || formulations === null || trials === null || organisations === null) {
-                    mainContent.innerHTML = `<p class="text-center text-red-500">Could not load application data. Please check your connection and refresh the page.</p>`;
+                    // Check if the app is being run from a local file path
+                    if (window.location.protocol === 'file:') {
+                        signInButtonContainer.innerHTML = `
+                            <div class="p-4 bg-red-100 border-l-4 border-red-500 text-red-700 rounded-lg text-left">
+                                <p class="font-bold mb-2">How to Run This App</p>
+                                <p class="text-sm">Google Sign-In cannot work when you open the HTML file directly from your computer.</p>
+                                <p class="text-sm mt-2">Please run this app from a web server or use the <strong>'Preview'</strong> feature in your development environment to get a valid web address (URL).</p>
+                            </div>
+                        `;
+                         loadingOverlay.classList.add('hidden');
+                        return;
+                    }
+
+                    // Removed the large troubleshooting HTML block for a cleaner UI
+
+                    if (GOOGLE_CLIENT_ID === 'YOUR_GOOGLE_CLIENT_ID_HERE' || GOOGLE_CLIENT_ID.length < 20) {
+                        signInButtonContainer.innerHTML = `
+                            <div class="p-4 bg-red-100 text-red-800 rounded-lg text-left">
+                                <p class="font-bold mb-2">Configuration Required</p>
+                                <p class="text-sm">Please set your Google Client ID in the HTML file to enable sign-in.</p>
+                            </div>
+                        `;
+                    } else if (typeof google !== 'undefined') {
+                        google.accounts.id.initialize({ client_id: GOOGLE_CLIENT_ID, callback: handleCredentialResponse });
+                        google.accounts.id.renderButton(signInButtonContainer, { theme: "outline", size: "large", width: "100%" });
+                    }
+                    loadingOverlay.classList.add('hidden');
+                    return; 
+                }
+                
+                appContainer.classList.remove('hidden');
+                onboardingContainer.classList.add('hidden');
+                
+                state.geminiApiKey = localStorage.getItem('geminiApiKey') || '';
+                
+                const allData = await apiCall('getAllData', {}, false);
+
+                if (allData === null) {
+                    mainContent.innerHTML = `<div class="text-center p-8 bg-white rounded-lg shadow"><p class="text-red-500 font-semibold">Could not load application data.</p><p class="text-gray-600 mt-2">Please check your connection and refresh the page. If the problem persists, ensure your Data Source URLs are correct in the Settings page.</p></div>`;
                     return;
                 }
+                
+                state.ingredients = normalizeIDs(allData.ingredients || []);
+                state.formulations = normalizeIDs(allData.formulations || []);
+                state.trials = normalizeIDs(allData.trials || []);
+                state.organisations = normalizeIDs(allData.organisations || []);
 
-                state.ingredients = ingredients.sort((a,b) => new Date(b.CreatedAt) - new Date(a.CreatedAt));
-                state.formulations = formulations.sort((a,b) => new Date(b.CreatedAt) - new Date(a.CreatedAt));
-                state.trials = trials.sort((a,b) => new Date(b.CreatedAt) - new Date(a.CreatedAt));
-                state.organisations = organisations;
-                calculateAllFormulationCosts();
-                switchPage('formulations');
+                switchPage(state.currentPage || 'formulations');
             } catch (error) {
                 console.error("Initialization failed:", error);
-                mainContent.innerHTML = `<p class="text-center text-red-500">A critical error occurred during startup. Please refresh the page.</p>`;
+                mainContent.innerHTML = `<div class="text-center p-8 bg-white rounded-lg shadow"><p class="text-red-500 font-semibold">A critical error occurred during startup.</p><p class="text-gray-600 mt-2">Please check the console for details and refresh the page.</p></div>`;
             } finally {
                 if(showOverlay) loadingOverlay.classList.add('hidden');
             }
         }
+        
+        // --- INITIALIZATION ---
+        document.getElementById('create-backend-button').addEventListener('click', createBackend);
+        document.getElementById('go-to-settings-button').addEventListener('click', () => {
+            appContainer.classList.remove('hidden');
+            onboardingContainer.classList.add('hidden');
+            switchPage('settings');
+        });
+
         bindEventListeners();
         initializeApp();
     });
     </script>
 </body>
 </html>
+
+
+
+
+
+
+
+
+
+
 
