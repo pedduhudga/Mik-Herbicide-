@@ -80,6 +80,7 @@
     <div id="toast" class="toast"></div>
 
     <script>
+        // NOTE: This URL is now confirmed as the latest deployed version.
         const DEFAULT_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyjrDiF7O6ANiYrZ5I4RuXAmo6hs18amnBr-2jyVoT_kJ1rpxf-flq9Cp4qs2Eakww/exec';
         // IMPORTANT: Replace this with your own Google Client ID from Google Cloud Platform for the sign-in feature to work.
         const GOOGLE_CLIENT_ID = '296425330223-m7p504qt7l1nc7gjnj2iolnf7di67n8a.apps.googleusercontent.com'; 
@@ -139,8 +140,6 @@
 
         // --- API & DATA ---
         async function apiCall(action, payload = {}, requiresAuth = true) {
-            // Note: If requiresAuth is false (as it is for createNewBackend now), 
-            // the token check and refresh are skipped for this specific call.
             if (requiresAuth && !state.auth.token) {
                  await refreshToken();
             }
@@ -149,50 +148,23 @@
             const body = {
                 action: action,
                 payload: payload,
-                // If requiresAuth is false, accessToken will be null or the payload's own token (if provided).
                 accessToken: requiresAuth ? state.auth.token : (payload.accessToken || null)
             };
             
             try {
-                // Determine fetch configuration
-                const isCorsBlockedCall = action === 'createNewBackend' && !requiresAuth;
-                
-                let headers = { 
+                // Return to simple fetch configuration, relying on the Apps Script's guaranteed CORS
+                const headers = { 
                     'Content-Type': 'text/plain;charset=utf-8',
                     'Cache-Control': 'no-cache',
                 };
-                let fetchMode = 'cors';
-                
-                // FINAL HACK: If CORS is failing hard (for the initial public call), switch to no-cors
-                if (isCorsBlockedCall) {
-                    headers = {
-                        // When using no-cors, you must only use "simple" headers.
-                        // We remove Access-Control-Allow-Origin header here as it causes issues.
-                        'Content-Type': 'text/plain;charset=utf-8',
-                        'Cache-Control': 'no-cache'
-                    };
-                    fetchMode = 'no-cors'; 
-                }
                 
                 const response = await fetch(url, {
                     method: 'POST',
                     redirect: 'follow',
                     headers: headers,
                     body: JSON.stringify(body),
-                    mode: fetchMode // This is the final change.
+                    mode: 'cors' 
                 });
-
-                if (isCorsBlockedCall && response.type === 'opaque') {
-                     // When using no-cors, the response is opaque and we can't read the status or body.
-                     // The only thing we can do is check if the request was sent successfully (no network error).
-                     // If we reach here, the request was SENT. We must assume success and rely on the
-                     // next data load call to verify if the files were created.
-                     return { 
-                         status: 'success', 
-                         newSheetId: 'CHECK_REQUIRED', 
-                         newFolderId: 'CHECK_REQUIRED' 
-                     };
-                }
 
                 if (!response.ok) {
                     throw new Error(`HTTP error! status: ${response.status}`);
@@ -337,24 +309,28 @@
                         showToast('Permissions granted! Creating your personal backend...', 'success');
                         loadingOverlay.classList.remove('hidden');
                         try {
-                            // *** MODIFIED CALL: requiresAuth set to FALSE to enable 'no-cors' ***
-                            const result = await apiCall('createNewBackend', {}, false); 
+                            // RequiresAuth is FALSE here, but the token is implicitly available to the script via ScriptApp.setOAuthToken(request.accessToken)
+                            const result = await apiCall('createNewBackend', { accessToken: tokenResponse.access_token }, false); 
                             
-                            if (result.status === 'success') {
-                                // If successful, the script ran on the server. We force a reload to verify files and load app.
-                                showToast('Backend creation request sent! Reloading app in 5 seconds to load data...', 'success');
-                                // The new sheet/folder IDs will be saved on successful data load after refresh.
-                                setTimeout(() => window.location.reload(), 5000); 
+                            // Since the response is clean JSON, we should get the data back.
+                            if (result && result.newSheetId && result.newFolderId) {
+                                state.settings = {
+                                    scriptUrl: state.settings.scriptUrl,
+                                    sheetId: result.newSheetId,
+                                    folderId: result.newFolderId
+                                };
+                                localStorage.setItem('appSettings', JSON.stringify(state.settings));
+                                showToast('Backend created successfully! Reloading app...', 'success');
+                                setTimeout(() => window.location.reload(), 2000);
 
                             } else {
-                                // This should only happen if no-cors failed, which is extremely unlikely.
                                 throw new Error('Failed to get new file IDs from the server. Check Apps Script logs.');
                             }
                         } catch (error) {
                             console.error('Backend creation failed:', error);
                             showToast(error.message, 'error');
                         } finally {
-                            // Do NOT remove loading overlay here. Wait for reload.
+                            loadingOverlay.classList.add('hidden');
                         }
 
                     } else {
