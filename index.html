@@ -18,7 +18,7 @@
         .nav-link { transition: all 0.2s ease-in-out; border-bottom: 2px solid transparent; padding-top: 1rem; padding-bottom: 1rem; cursor: pointer; }
         .nav-link.active { border-bottom-color: #3b82f6; color: #3b82f6; font-weight: 600; }
         .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0, 0, 0, 0.5); animation: fadeIn 0.3s; }
-        #cropper-modal { z-index: 1050; }
+        #cropper-modal, #camera-modal { z-index: 1050; }
         .modal-content { animation: slideIn 0.3s; }
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
         @keyframes slideIn { from { transform: translateY(-30px); opacity: 0; } to { translateY(0); opacity: 1; } }
@@ -27,6 +27,7 @@
         .toast.success { background-color: #28a745; }
         .toast.error { background-color: #dc3545; }
         #cropper-container > img { max-width: 100%; max-height: 70vh; }
+        #camera-modal video { width: 100%; max-height: 70vh; border-radius: 8px; background-color: #000;}
         #ai-chat-box { height: calc(100vh - 25rem); }
         .ai-message { background-color: #e5e7eb; }
         .user-message { background-color: #dbeafe; align-self: flex-end; }
@@ -47,6 +48,16 @@
         .result-fair, .result-select.result-fair { background-color: #fef3c7; color: #92400e; }
         .result-poor, .result-select.result-poor { background-color: #fee2e2; color: #991b1b; }
         .result-select.result-none { background-color: #e5e7eb; color: #4b5563; }
+        .quick-add-btn {
+            background-color: #e5e7eb;
+            color: #374151;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            font-weight: 500;
+            transition: background-color 0.2s;
+        }
+        .quick-add-btn:hover { background-color: #d1d5db; }
     </style>
 </head>
 <body class="antialiased">
@@ -72,6 +83,7 @@
     <!-- Modals & Overlays -->
     <div id="modal-container"></div>
     <div id="cropper-modal" class="modal"><div class="modal-content bg-white p-6 rounded-lg shadow-xl w-full max-w-4xl mx-auto mt-10"><h3 class="text-lg font-bold mb-4">Crop Image</h3><div id="cropper-container" class="mb-4 bg-gray-200"><img id="image-to-crop"></div><div class="flex justify-end space-x-3"><button data-action="cancel-crop" class="bg-gray-200 text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-300">Cancel</button><button data-action="crop-image" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">Crop & Save Image</button></div></div></div>
+    <div id="camera-modal" class="modal"><div class="modal-content bg-white p-6 rounded-lg shadow-xl w-full max-w-2xl mx-auto mt-10"><h3 class="text-lg font-bold mb-4">Live Camera</h3><video id="camera-stream" autoplay playsinline></video><canvas id="camera-canvas" class="hidden"></canvas><div class="mt-4 flex justify-end space-x-3"><button data-action="close-camera" class="bg-gray-200 text-gray-800 px-4 py-2 rounded-lg">Cancel</button><button data-action="capture-photo" class="bg-blue-600 text-white px-4 py-2 rounded-lg">Capture Photo</button></div></div></div>
     <div id="loading-overlay" class="fixed inset-0 bg-gray-900 bg-opacity-50 z-50 flex items-center justify-center hidden"><div class="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-white"></div></div>
     <div id="toast" class="toast"></div>
     <script>
@@ -85,7 +97,9 @@
             selectedTrials: [], 
             photoQueue: [], 
             croppedPhotosData: [], 
+            currentTrialIdForCamera: null,
             geminiApiKey: '',
+            aiChatHistory: [],
             settings: {
                 scriptUrl: DEFAULT_SCRIPT_URL,
                 sheetId: null,
@@ -98,7 +112,11 @@
         const toast = document.getElementById('toast');
         const cropperModal = document.getElementById('cropper-modal');
         const imageToCrop = document.getElementById('image-to-crop');
+        const cameraModal = document.getElementById('camera-modal');
+        const videoElement = document.getElementById('camera-stream');
+        const canvasElement = document.getElementById('camera-canvas');
         let cropper = null;
+        let cameraStream = null;
 
         const templates = {
             page: (pageId) => ({
@@ -106,7 +124,17 @@
                 trials: `<div class="bg-white p-4 rounded-lg shadow-md mb-6"><div class="flex justify-between items-center"><h3 class="font-semibold text-gray-800 mb-2">Filters & Sorting</h3><div class="flex gap-2"><button data-action="sort-trials" data-sort="date" class="text-sm bg-gray-200 px-3 py-1 rounded-md">Sort by Date</button><button data-action="sort-trials" data-sort="result" class="text-sm bg-gray-200 px-3 py-1 rounded-md">Sort by Result</button></div></div><div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4"><input type="search" data-action="filter" data-type="trial-search" placeholder="Search investigator, species..." class="w-full px-4 py-2 border rounded-lg"><select data-action="filter" data-type="trial-formulation" class="p-2 border rounded-lg bg-white"><option value="">Filter by Formulation</option></select><div class="grid grid-cols-2 gap-2"><input type="date" data-action="filter" data-type="trial-start-date" class="p-2 border rounded-lg" title="Start Date"><input type="date" data-action="filter" data-type="trial-end-date" class="p-2 border rounded-lg" title="End Date"></div></div></div><div class="flex justify-end mb-6"><button data-action="openModal" data-type="trial" class="bg-blue-600 text-white px-4 py-2 rounded-lg shadow hover:bg-blue-700 transition w-full sm:w-auto">+ Log New Trial</button></div><div id="trials-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div><div id="organise-bar" class="hidden fixed bottom-10 left-1/2 -translate-x-1/2 bg-gray-800 text-white py-3 px-6 rounded-lg shadow-lg flex items-center gap-4 z-20"><span id="selected-trials-count"></span><button data-action="open-organise-modal" class="bg-indigo-500 hover:bg-indigo-600 px-4 py-2 rounded-md text-sm font-semibold">Add to Organisation</button></div>`,
                 organisations: `<div class="flex justify-between items-center mb-6"><div><h2 class="text-xl font-semibold text-gray-700">Trial Organisations</h2><p class="text-sm text-gray-500">Group trials together for easier analysis.</p></div></div><div id="organisations-list" class="space-y-8"></div>`,
                 ingredients: `<div class="bg-white p-6 rounded-lg shadow mb-8"><h3 class="text-lg font-medium text-gray-800">Bulk Add Ingredients</h3><p class="text-sm text-gray-500 mb-2">Enter multiple ingredients in the format: Name Cost Unit, ... (e.g., Glyphosate 15000 L, Paraquat 8000 kg)</p><div class="flex gap-2"><textarea id="bulk-ingredients-cost-input" placeholder="IngredientA 100 kg, IngredientB 50 L" class="w-full p-2 border border-gray-300 rounded-md" rows="4"></textarea><button type="button" data-action="apply-bulk-add-cost" class="bg-indigo-600 text-white px-4 py-2 rounded-lg self-start">Add Bulk</button></div></div><div class="flex justify-between items-center mb-6"><h2 class="text-xl font-semibold text-gray-700">Ingredient Costs</h2><button data-action="openModal" data-type="ingredient" class="bg-blue-600 text-white px-4 py-2 rounded-lg shadow hover:bg-blue-700 transition">+ Add New Cost</button></div><div id="ingredients-list" class="bg-white p-6 rounded-lg shadow"></div>`,
-                aiAssistant: `<div class="bg-white p-6 rounded-lg shadow"><h2 class="text-xl font-semibold text-gray-700 mb-4">AI Assistant</h2><div id="ai-chat-box" class="border rounded-lg p-4 overflow-y-auto mb-4 bg-gray-50 flex flex-col gap-2"><div class="ai-message p-3 rounded-lg max-w-xl">Hello! Ask me about your trial data or any other questions you have.</div></div><form id="ai-form" class="flex gap-4"><input type="text" id="ai-input" placeholder="E.g., Which formulation had the best result?" class="flex-grow p-2 border rounded-lg" required><button type="submit" class="bg-blue-600 text-white px-5 py-2 rounded-lg">Send</button></form></div>`,
+                aiAssistant: `<div class="bg-white p-6 rounded-lg shadow">
+                                <div class="flex justify-between items-center mb-4">
+                                    <h2 class="text-xl font-semibold text-gray-700">AI Assistant</h2>
+                                    <button data-action="clear-chat" class="text-sm bg-gray-200 px-3 py-1 rounded-md hover:bg-gray-300">Clear History</button>
+                                </div>
+                                <div id="ai-chat-box" class="border rounded-lg p-4 overflow-y-auto mb-4 bg-gray-50 flex flex-col gap-2"></div>
+                                <form id="ai-form" class="flex gap-4">
+                                    <input type="text" id="ai-input" placeholder="E.g., Which formulation had the best result?" class="flex-grow p-2 border rounded-lg" required>
+                                    <button type="submit" class="bg-blue-600 text-white px-5 py-2 rounded-lg">Send</button>
+                                </form>
+                              </div>`,
                 dataMgmt: `<div class="space-y-8"><div><h2 class="text-xl font-semibold text-gray-700 mb-4">Export Data</h2><div class="bg-white p-6 rounded-lg shadow"><p class="text-gray-600 mb-4">Download all your data as a JSON file for backup or as a ZIP with photos.</p><div class="flex gap-4"><button data-action="export-json" class="bg-green-600 text-white px-4 py-2 rounded-lg">Export to JSON</button><button data-action="export-zip" class="bg-green-700 text-white px-4 py-2 rounded-lg">Export with Photos</button></div></div></div><div><h2 class="text-xl font-semibold text-gray-700 mb-4">Import Data</h2><div class="bg-white p-6 rounded-lg shadow"><p class="text-gray-600 mb-4">Upload a previously exported JSON file to restore your data. <strong class="text-red-600">This will overwrite all current data.</strong></p><input type="file" id="import-file-input" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" accept=".json"><button data-action="import-json" class="mt-4 bg-blue-600 text-white px-4 py-2 rounded-lg" disabled>Import from JSON</button></div></div><div><h2 class="text-xl font-semibold text-gray-700 mb-4">Clear All Data</h2><div class="bg-white p-6 rounded-lg shadow border-red-300"><p class="text-gray-600 mb-4">Permanently delete all your data. <strong class="text-red-600">This action cannot be undone.</strong></p><button data-action="clear-data" class="bg-red-600 text-white px-4 py-2 rounded-lg">Clear All Data</button></div></div></div>`,
                 settings: `<div class="bg-white p-6 rounded-lg shadow space-y-8">
                                 <div>
@@ -136,13 +164,20 @@
                                         </div>
                                     </form>
                                 </div>
+                                <div class="border-t pt-8">
+                                    <h3 class="text-lg font-medium text-gray-900">Troubleshooting</h3>
+                                     <p class="mt-1 text-sm text-gray-600">If you are experiencing issues, clear the application cache and perform a hard reload.</p>
+                                     <div class="mt-4">
+                                        <button data-action="force-reload" class="bg-red-600 text-white px-4 py-2 rounded-lg">Clear Cache & Reload App</button>
+                                     </div>
+                                </div>
                            </div>`,
             })[pageId] || '',
             modal: (modalId, isEdit = false, data = {}) => {
                 const modalTemplates = {
                     ingredient: `<div id="ingredient-modal" class="modal"><div class="modal-content bg-white p-8 rounded-lg shadow-xl w-full max-w-md mx-auto mt-20"><h3 class="text-lg font-bold mb-4">${isEdit ? 'Edit' : 'Add'} Ingredient</h3><form id="ingredient-form"><input type="hidden" name="id"><div class="mb-4"><label class="block text-sm font-medium text-gray-700">Ingredient Name</label><input type="text" name="name" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm"></div><div class="grid grid-cols-2 gap-4"><div><label class="block text-sm font-medium text-gray-700">Cost</label><input type="number" name="cost" step="0.01" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm"></div><div><label class="block text-sm font-medium text-gray-700">Base Unit</label><select name="unit" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm bg-white"><option value="L">L</option><option value="kg">kg</option><option value="ml">ml</option><option value="gm">gm</option></select></div></div><div class="mt-6 flex justify-end space-x-3"><button type="button" data-action="close-modal" class="bg-gray-200 text-gray-800 px-4 py-2 rounded-lg">Cancel</button><button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded-lg">Save</button></div></form></div></div>`,
                     formulation: `<div id="formulation-modal" class="modal"><div class="modal-content bg-white p-8 rounded-lg shadow-xl w-full max-w-2xl mx-auto mt-10"><h3 class="text-lg font-bold mb-4">${isEdit ? 'Edit' : 'Add'} Formulation</h3><form id="formulation-form"><input type="hidden" name="id"><div class="grid grid-cols-1 md:grid-cols-2 gap-6"><input type="text" name="name" required placeholder="Formulation Name" class="p-2 border border-gray-300 rounded-md"><input type="text" name="notes" placeholder="Notes" class="p-2 border border-gray-300 rounded-md"></div><div class="mt-6"><h4 class="text-md font-medium text-gray-800">Bulk Add Ingredients</h4><p class="text-sm text-gray-500 mb-2">Enter ingredients in the format: Name QuantityUnit, ...</p><div class="flex gap-2"><textarea id="bulk-ingredients-input" placeholder="Pelargonic Acid 50ML, Capric Acid 20ML" class="w-full p-2 border border-gray-300 rounded-md" rows="3"></textarea><button type="button" data-action="apply-bulk-add" class="bg-indigo-600 text-white px-4 py-2 rounded-lg self-start">Add</button></div></div><div class="mt-6"><h4 class="text-md font-medium text-gray-800">Ingredients</h4><div id="formulation-ingredients-container" class="mt-2 space-y-3"></div><button type="button" data-action="add-ingredient-row" class="mt-3 text-sm text-blue-600 hover:text-blue-800">+ Add Another Ingredient</button></div><div class="mt-6 border-t pt-4"><p class="font-semibold">Total Cost: <span id="formulation-total-cost">${CURRENCY_SYMBOL}0.00</span></p></div><div class="mt-6 flex justify-end space-x-3"><button type="button" data-action="close-modal" class="bg-gray-200 text-gray-800 px-4 py-2 rounded-lg">Cancel</button><button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded-lg">Save</button></div></form></div></div>`,
-                    trial: `<div id="trial-modal" class="modal"><div class="modal-content bg-white p-8 rounded-lg shadow-xl w-full max-w-3xl mx-auto mt-10"><h3 class="text-lg font-bold mb-4">${isEdit ? 'Edit' : 'Log'} Trial</h3><form id="trial-form"><input type="hidden" name="id"><div class="grid grid-cols-1 md:grid-cols-2 gap-6"><input type="text" name="investigatorName" required placeholder="Investigator Name" class="p-2 border border-gray-300 rounded-md" list="investigator-list"><datalist id="investigator-list"></datalist><select name="formulationId" id="trial-formulation" required class="p-2 border border-gray-300 rounded-md bg-white"></select><input type="text" name="dosage" placeholder="Dosage" class="p-2 border border-gray-300 rounded-md"><input type="text" name="weedSpecies" placeholder="Weed Species" class="p-2 border border-gray-300 rounded-md"><input type="date" name="date" id="trial-date" required class="p-2 border border-gray-300 rounded-md"><select name="result" class="p-2 border border-gray-300 rounded-md bg-white"><option value="">Select Result</option><option value="Excellent">Excellent</option><option value="Good">Good</option><option value="Fair">Fair</option><option value="Poor">Poor</option></select><div class="md:col-span-2 flex items-center gap-2"><input type="checkbox" id="control-finalized" name="controlFinalized" class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"><label for="control-finalized" class="text-sm text-gray-700">Mark final control day (stops counting)</label></div></div><div class="mt-6 p-4 bg-gray-50 rounded-lg"><div class="flex justify-between items-center mb-2"><h4 class="text-md font-medium text-gray-800">Weather Conditions</h4><button type="button" data-action="fetch-weather" class="text-sm text-blue-600 hover:text-blue-800 font-semibold">Fetch Current Weather</button></div><div class="grid grid-cols-2 md:grid-cols-4 gap-4"><input type="text" name="temperature" placeholder="Temp (°C)" class="p-2 border border-gray-300 rounded-md text-sm"><input type="text" name="humidity" placeholder="Humidity (%)" class="p-2 border border-gray-300 rounded-md text-sm"><input type="text" name="windspeed" placeholder="Wind (km/h)" class="p-2 border border-gray-300 rounded-md text-sm"><input type="text" name="rain" placeholder="Rain (mm)" class="p-2 border border-gray-300 rounded-md text-sm"></div></div><div class="mt-6 grid grid-cols-1 gap-6"><textarea name="conclusion" rows="3" placeholder="Conclusion" class="p-2 border border-gray-300 rounded-md"></textarea><textarea name="notes" rows="2" placeholder="Trial Notes" class="p-2 border border-gray-300 rounded-md"></textarea></div><div class="mt-6"><label class="block text-sm font-medium text-gray-700">Add & Crop Photos</label><input type="file" id="trial-photos" multiple accept="image/*" class="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"><div id="photo-preview" class="mt-2 flex flex-wrap gap-4"></div></div><div class="mt-6 flex justify-end space-x-3"><button type="button" data-action="close-modal" class="bg-gray-200 text-gray-800 px-4 py-2 rounded-lg">Cancel</button><button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded-lg">Save</button></div></form></div></div>`,
+                    trial: `<div id="trial-modal" class="modal"><div class="modal-content bg-white p-8 rounded-lg shadow-xl w-full max-w-3xl mx-auto mt-10"><h3 class="text-lg font-bold mb-4">${isEdit ? 'Edit' : 'Log'} Trial</h3><form id="trial-form"><input type="hidden" name="id"><div class="grid grid-cols-1 md:grid-cols-2 gap-6"><input type="text" name="investigatorName" required placeholder="Investigator Name" class="p-2 border border-gray-300 rounded-md" list="investigator-list"><datalist id="investigator-list"></datalist><select name="formulationId" id="trial-formulation" required class="p-2 border border-gray-300 rounded-md bg-white"></select><input type="text" name="dosage" placeholder="Dosage" class="p-2 border border-gray-300 rounded-md"><input type="text" name="weedSpecies" placeholder="Weed Species" class="p-2 border border-gray-300 rounded-md"><input type="date" name="date" id="trial-date" required class="p-2 border border-gray-300 rounded-md"><select name="result" class="p-2 border border-gray-300 rounded-md bg-white"><option value="">Select Result</option><option value="Excellent">Excellent</option><option value="Good">Good</option><option value="Fair">Fair</option><option value="Poor">Poor</option></select><div class="md:col-span-2 flex items-center gap-2"><input type="checkbox" id="control-finalized" name="controlFinalized" class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"><label for="control-finalized" class="text-sm text-gray-700">Mark final control day (stops counting)</label></div></div><div class="mt-6 p-4 bg-gray-50 rounded-lg"><div class="flex justify-between items-center mb-2"><h4 class="text-md font-medium text-gray-800">Weather Conditions</h4><button type="button" data-action="fetch-weather" class="text-sm text-blue-600 hover:text-blue-800 font-semibold">Fetch Current Weather</button></div><div class="grid grid-cols-2 md:grid-cols-4 gap-4"><input type="text" name="temperature" placeholder="Temp (°C)" class="p-2 border border-gray-300 rounded-md text-sm"><input type="text" name="humidity" placeholder="Humidity (%)" class="p-2 border border-gray-300 rounded-md text-sm"><input type="text" name="windspeed" placeholder="Wind (km/h)" class="p-2 border border-gray-300 rounded-md text-sm"><input type="text" name="rain" placeholder="Rain (mm)" class="p-2 border border-gray-300 rounded-md text-sm"></div></div><div class="mt-6 grid grid-cols-1 gap-6"><textarea name="conclusion" rows="3" placeholder="Conclusion" class="p-2 border border-gray-300 rounded-md"></textarea><textarea name="notes" rows="2" placeholder="Trial Notes" class="p-2 border border-gray-300 rounded-md"></textarea></div><div class="mt-6"><label class="block text-sm font-medium text-gray-700">Add & Crop Photos</label><div class="flex items-center gap-4 mt-2"><input type="file" id="trial-photos" multiple accept="image/*" class="hidden"><label for="trial-photos" class="cursor-pointer bg-white text-blue-700 px-4 py-2 rounded-lg border border-blue-700 hover:bg-blue-50 text-sm font-semibold">Choose Files</label><button type="button" data-action="open-camera" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 text-sm font-semibold">Open Camera</button></div><div id="photo-preview" class="mt-2 flex flex-wrap gap-4"></div></div><div class="mt-6 flex justify-end space-x-3"><button type="button" data-action="close-modal" class="bg-gray-200 text-gray-800 px-4 py-2 rounded-lg">Cancel</button><button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded-lg">Save</button></div></form></div></div>`,
                     confirm: `<div id="confirm-modal" class="modal"><div class="modal-content bg-white p-6 rounded-lg shadow-xl w-full max-w-sm mx-auto mt-20"><h3 id="confirm-title" class="text-lg font-bold mb-4">Are you sure?</h3><p id="confirm-message" class="text-gray-600 mb-6">This action cannot be undone.</p><div class="flex justify-end space-x-3"><button data-action="confirm-cancel" class="bg-gray-200 text-gray-800 px-4 py-2 rounded-lg">Cancel</button><button data-action="confirm-ok" class="bg-red-600 text-white px-4 py-2 rounded-lg">Confirm</button></div></div></div>`,
                     trialDetail: () => {
                         const { trial } = data;
@@ -177,8 +212,8 @@
                 } else {
                     controlDuration = 'N/A';
                 }
-                const photos = JSON.parse(trial.PhotoURLs || '[]').map(p => {
-                    const proxiedUrl = p.url ? `https://images.weserv.nl/?url=${encodeURIComponent(p.url)}` : '';
+                const photos = JSON.parse(trial.PhotoURLs || '[]').slice(0, 4).map(p => { // Show max 4 thumbnails
+                    const proxiedUrl = p.url ? `https://images.weserv.nl/?url=${encodeURIComponent(p.url)}&w=100&h=100&fit=cover` : '';
                     return `<img src="${proxiedUrl}" class="h-16 w-16 object-cover rounded-md border" alt="${p.label || 'Trial photo'}">`
                 }).join('');
 
@@ -194,13 +229,13 @@
                 `;
 
                 return `
-                <div class="bg-white p-4 rounded-lg shadow-md">
+                <div class="bg-white p-4 rounded-lg shadow-md flex flex-col h-full">
                     <div class="flex items-start gap-4">
                         ${showCheckbox ? `<input type="checkbox" data-action="select-trial" data-id="${trial.ID}" class="mt-1 h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500">` : ''}
                         <div class="flex-grow">
                             <div class="flex justify-between items-start">
                                 <div class="flex-grow cursor-pointer" data-action="view-trial" data-id="${trial.ID}">
-                                    <h3 class="font-bold text-lg">${trial.FormulationName}</h3>
+                                    <h3 class="font-bold text-lg">${trial.FormulationName || 'Unknown Formulation'}</h3>
                                 </div>
                                 <div class="flex flex-col items-end gap-2 ml-4">
                                     <button data-action="edit" data-type="trial" data-id="${trial.ID}" class="text-blue-600 hover:text-blue-800 font-semibold text-sm px-3 py-1">Edit</button>
@@ -218,6 +253,11 @@
                             </div>
                             ${photos ? `<div class="mt-4 cursor-pointer" data-action="view-trial" data-id="${trial.ID}"><div class="flex flex-wrap gap-2">${photos}</div></div>` : ''}
                         </div>
+                    </div>
+                    <div class="mt-auto pt-4 border-t border-gray-100 flex items-center justify-end gap-2">
+                        <input type="file" id="quick-photo-input-${trial.ID}" class="hidden" data-action="quick-add-photo" data-id="${trial.ID}" accept="image/*" multiple>
+                        <label for="quick-photo-input-${trial.ID}" class="quick-add-btn cursor-pointer">Add Photo</label>
+                        <button class="quick-add-btn" data-action="quick-open-camera" data-id="${trial.ID}">Camera</button>
                     </div>
                 </div>`;
             },
@@ -259,7 +299,7 @@
                 if (!res.ok) throw new Error(`Network error: ${res.statusText}`);
                 const result = await res.json();
                 if (result.status === 'error') {
-                    console.error('Server-side error:', result.stack);
+                    console.error('Server-side error:', result.message, '\nStack:', result.stack);
                     throw new Error(result.message);
                 }
                 return result.data;
@@ -272,7 +312,7 @@
             }
         }
         
-        function showToast(message, type = 'success') { toast.textContent = message; toast.className = `toast show ${type}`; setTimeout(() => { toast.className = toast.className.replace('show', ''); }, 3000); }
+        function showToast(message, type = 'success') { toast.textContent = message; toast.className = `toast show ${type}`; setTimeout(() => { toast.className = toast.className.replace('show', ''); }, 5000); }
         
         function switchPage(pageId) {
             state.currentPage = pageId;
@@ -294,6 +334,20 @@
                 document.getElementById('script-url').value = state.settings.scriptUrl || '';
                 document.getElementById('sheet-url').value = state.settings.sheetId ? `https://docs.google.com/spreadsheets/d/${state.settings.sheetId}/` : '';
                 document.getElementById('folder-url').value = state.settings.folderId ? `https://drive.google.com/drive/folders/${state.settings.folderId}` : '';
+            }
+             if (pageId === 'aiAssistant') {
+                setTimeout(() => { // Ensure DOM is painted before manipulating
+                    const chatBox = document.getElementById('ai-chat-box');
+                    if (!chatBox) return;
+                    
+                    chatBox.innerHTML = ''; 
+                    
+                    if (state.aiChatHistory.length === 0) {
+                        appendMessageToChat('Hello! Ask me about your trial data or any other questions you have.', 'ai', true);
+                    } else {
+                        state.aiChatHistory.forEach(msg => appendMessageToChat(msg.text, msg.sender, false));
+                    }
+                }, 0);
             }
         }
 
@@ -341,6 +395,7 @@
 
         function handleOpenModal(type) {
             state.croppedPhotosData = [];
+            state.currentTrialIdForCamera = null;
             openModal(type);
             setTimeout(() => {
                 if (type === 'trial') {
@@ -362,6 +417,7 @@
         }
 
         function handleEdit(type, id) {
+             state.currentTrialIdForCamera = null;
              const data = state[type + 's'].find(item => item.ID === id);
              if (data) {
                  openModal(type, true);
@@ -702,11 +758,41 @@
         }
 
         function handlePhotoSelection(event) { state.photoQueue = [...event.target.files]; if(state.photoQueue.length > 0) processPhotoQueue(); }
-        function processPhotoQueue() { if (state.photoQueue.length === 0) return; const file = state.photoQueue.shift(); const reader = new FileReader(); reader.onload = e => openCropper(e.target.result); reader.readAsDataURL(file); }
+        function processPhotoQueue() { if (state.photoQueue.length === 0) { if (state.currentTrialIdForCamera) { state.currentTrialIdForCamera = null; } return; }; const file = state.photoQueue.shift(); const reader = new FileReader(); reader.onload = e => openCropper(e.target.result); reader.readAsDataURL(file); }
         function openCropper(imageData) { imageToCrop.src = imageData; cropperModal.style.display = 'block'; if(cropper) cropper.destroy(); cropper = new Cropper(imageToCrop, { viewMode: 0, autoCrop: false, background: false, movable: true, zoomable: true, scalable: true, rotatable: true }); }
-        function cropAndSaveImage() { const croppedCanvas = cropper.getCroppedCanvas(); const croppedImageData = croppedCanvas.toDataURL('image/jpeg', 0.9); state.croppedPhotosData.push({ fileData: croppedImageData, fileName: `cropped_image_${Date.now()}.jpg`, mimeType: 'image/jpeg', label: '' }); updatePhotoPreview(); closeCropper(); }
-        function closeCropper() { if(cropper) cropper.destroy(); cropper = null; cropperModal.style.display = 'none'; if (state.photoQueue.length > 0) processPhotoQueue(); }
-        function updatePhotoPreview() { const previewContainer = document.getElementById('photo-preview'); if(!previewContainer) return; previewContainer.innerHTML = ''; state.croppedPhotosData.forEach((data, index) => { const wrapper = document.createElement('div'); wrapper.className = 'relative'; wrapper.innerHTML = `<img src="${data.fileData}" class="h-24 w-24 object-cover rounded-md border"><input type="text" data-index="${index}" class="photo-label-input absolute bottom-0 left-0 w-full text-xs p-1 bg-black bg-opacity-50 text-white" placeholder="Label..." value="${data.label || ''}"><button data-action="remove-photo" data-index="${index}" class="absolute top-0 right-0 bg-red-500 text-white rounded-full h-5 w-5 flex items-center justify-center text-xs font-bold">&times;</button>`; previewContainer.appendChild(wrapper); }); }
+        
+        async function cropAndSaveImage() { 
+            const croppedCanvas = cropper.getCroppedCanvas(); 
+            const croppedImageData = croppedCanvas.toDataURL('image/jpeg', 0.9); 
+            const photoData = { fileData: croppedImageData, fileName: `cropped_image_${Date.now()}.jpg`, mimeType: 'image/jpeg', label: '' };
+            
+            if (state.currentTrialIdForCamera) {
+                const trialId = state.currentTrialIdForCamera;
+                closeCropper();
+                await handleQuickPhotoAdd(trialId, [photoData]);
+            } else {
+                state.croppedPhotosData.push(photoData);
+                updatePhotoPreview();
+                closeCropper();
+            }
+        }
+
+        function closeCropper() { if(cropper) cropper.destroy(); cropper = null; cropperModal.style.display = 'none'; if (state.photoQueue.length > 0) processPhotoQueue(); else { state.currentTrialIdForCamera = null; } }
+        
+        function updatePhotoPreview() {
+            const previewContainer = document.getElementById('photo-preview');
+            if (!previewContainer) return;
+            previewContainer.innerHTML = '';
+            state.croppedPhotosData.forEach((data, index) => {
+                const wrapper = document.createElement('div');
+                wrapper.className = 'relative';
+                const imgSrc = data.isExisting 
+                    ? `https://images.weserv.nl/?url=${encodeURIComponent(data.fileData)}`
+                    : data.fileData; // This is already a base64 data URL
+                wrapper.innerHTML = `<img src="${imgSrc}" class="h-24 w-24 object-cover rounded-md border"><input type="text" data-index="${index}" class="photo-label-input absolute bottom-0 left-0 w-full text-xs p-1 bg-black bg-opacity-50 text-white" placeholder="Label..." value="${data.label || ''}"><button data-action="remove-photo" data-index="${index}" class="absolute top-0 right-0 bg-red-500 text-white rounded-full h-5 w-5 flex items-center justify-center text-xs font-bold">&times;</button>`;
+                previewContainer.appendChild(wrapper);
+            });
+        }
         
         async function uploadPhotos(photosData) {
             if (!photosData.length) return [];
@@ -716,6 +802,70 @@
                 url: result.url,
                 label: photosData[index].label
             }));
+        }
+
+        async function handleQuickPhotoAdd(trialId, photosData) {
+            loadingOverlay.classList.remove('hidden');
+            showToast(`Adding ${photosData.length} photo(s) to trial...`, 'success');
+            try {
+                const uploadedPhotoURLs = await uploadPhotos(photosData);
+                if (uploadedPhotoURLs.length > 0) {
+                    const result = await apiCall('appendPhotosToTrial', { id: trialId, photoURLs: uploadedPhotoURLs }, false);
+                    if (result) {
+                        await initializeApp(false);
+                        showToast('Photo(s) added successfully!', 'success');
+                    } else {
+                         throw new Error("Failed to append photos on the server.");
+                    }
+                } else {
+                    throw new Error("Photo upload failed.");
+                }
+            } catch (error) {
+                showToast(`Error adding photo: ${error.message}`, 'error');
+                await initializeApp(false); // Refresh data even on error to sync state
+            } finally {
+                loadingOverlay.classList.add('hidden');
+                state.currentTrialIdForCamera = null;
+            }
+        }
+        
+        // --- NEW CAMERA FUNCTIONS ---
+        async function openCamera(trialId = null) {
+            state.currentTrialIdForCamera = trialId;
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                showToast("Camera not supported on this browser.", "error");
+                return;
+            }
+            try {
+                cameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+                videoElement.srcObject = cameraStream;
+                cameraModal.style.display = 'block';
+            } catch (err) {
+                console.error("Camera Error:", err);
+                let message = "Could not access camera.";
+                if (err.name === "NotAllowedError") {
+                    message = "Camera access was denied. Please check your browser permissions.";
+                } else if (err.name === "NotFoundError") {
+                    message = "No camera found on this device.";
+                }
+                showToast(message, 'error');
+                state.currentTrialIdForCamera = null;
+            }
+        }
+        function closeCamera() {
+            if (cameraStream) {
+                cameraStream.getTracks().forEach(track => track.stop());
+            }
+            cameraModal.style.display = 'none';
+        }
+        function capturePhoto() {
+            canvasElement.width = videoElement.videoWidth;
+            canvasElement.height = videoElement.videoHeight;
+            const context = canvasElement.getContext('2d');
+            context.drawImage(videoElement, 0, 0, canvasElement.width, canvasElement.height);
+            const imageDataUrl = canvasElement.toDataURL('image/jpeg', 0.9);
+            closeCamera();
+            openCropper(imageDataUrl);
         }
 
         async function fetchWeather() {
@@ -1100,7 +1250,21 @@
                 appendMessageToChat(text.replace(/\n/g, '<br>'), 'ai');
             } catch (error) { console.error("AI Error:", error); appendMessageToChat(`Sorry, an error occurred: ${error.message}`, 'ai'); }
         }
-        function appendMessageToChat(text, sender) { const chatBox = document.getElementById('ai-chat-box'); if (!chatBox) return; const msgDiv = document.createElement('div'); msgDiv.innerHTML = text; msgDiv.className = `${sender}-message p-3 rounded-lg max-w-xl`; chatBox.appendChild(msgDiv); chatBox.scrollTop = chatBox.scrollHeight; }
+        function appendMessageToChat(text, sender, save = true) {
+            if (save) {
+                state.aiChatHistory.push({ text, sender });
+                localStorage.setItem('aiChatHistory', JSON.stringify(state.aiChatHistory));
+            }
+            
+            const chatBox = document.getElementById('ai-chat-box');
+            if (!chatBox) return;
+            
+            const msgDiv = document.createElement('div');
+            msgDiv.innerHTML = text;
+            msgDiv.className = `${sender}-message p-3 rounded-lg max-w-xl`;
+            chatBox.appendChild(msgDiv);
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
         
         function bindEventListeners() {
             document.querySelector('nav').addEventListener('click', e => { if (e.target.matches('.nav-link')) { e.preventDefault(); switchPage(e.target.dataset.page); } });
@@ -1129,12 +1293,21 @@
                     'export-zip': exportWithPhotos,
                     'import-json': importJson,
                     'clear-data': () => clearAllData(true),
+                    'force-reload': () => {
+                        showToast('Clearing cache and reloading...');
+                        localStorage.removeItem('appSettings');
+                        setTimeout(() => window.location.reload(true), 1500);
+                    },
                     'add-ingredient-row': addFormulationIngredientRow,
                     'apply-bulk-add': handleBulkIngredients,
                     'apply-bulk-add-cost': handleBulkIngredientsCost,
                     'close-modal': closeModal,
                     'cancel-crop': closeCropper,
                     'crop-image': cropAndSaveImage,
+                    'open-camera': () => openCamera(),
+                    'quick-open-camera': () => openCamera(id),
+                    'close-camera': closeCamera,
+                    'capture-photo': capturePhoto,
                     'remove-ingredient-row': () => { target.closest('.formulation-ingredient-row').remove(); updateFormulationCost(); },
                     'remove-photo': () => { state.croppedPhotosData.splice(index, 1); updatePhotoPreview(); },
                     'reset-data-sources': () => {
@@ -1142,6 +1315,16 @@
                         loadSettings();
                         showToast('Data sources reset to default.');
                         initializeApp();
+                    },
+                    'clear-chat': () => {
+                        showConfirmation('Clear Chat History?', 'This will permanently delete the current conversation.', () => {
+                            state.aiChatHistory = [];
+                            localStorage.removeItem('aiChatHistory');
+                            const chatBox = document.getElementById('ai-chat-box');
+                            if (chatBox) chatBox.innerHTML = '';
+                            appendMessageToChat('Hello! Ask me about your trial data or any other questions you have.', 'ai');
+                            showToast('Chat history cleared.');
+                        });
                     }
                 };
                 if (actions[action]) {
@@ -1192,6 +1375,14 @@
                         target.className = 'result-select result-' + (target.value.toLowerCase() || 'none');
                     }
                 }
+                if (target.matches('[data-action="quick-add-photo"]')) {
+                    if (target.files.length > 0) {
+                        state.currentTrialIdForCamera = target.dataset.id;
+                        state.photoQueue = [...target.files];
+                        processPhotoQueue();
+                    }
+                    target.value = ''; // Reset file input
+                }
             });
             document.body.addEventListener('submit', e => {
                 e.preventDefault();
@@ -1240,6 +1431,15 @@
             try {
                 loadSettings();
                 state.geminiApiKey = localStorage.getItem('geminiApiKey') || '';
+                const savedChat = localStorage.getItem('aiChatHistory');
+                if (savedChat) {
+                    try {
+                        state.aiChatHistory = JSON.parse(savedChat);
+                    } catch (e) {
+                        console.error("Failed to parse AI chat history from localStorage", e);
+                        state.aiChatHistory = [];
+                    }
+                }
                 
                 const allData = await apiCall('getAllData', {}, false);
 
