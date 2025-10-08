@@ -18,7 +18,7 @@
         .nav-link { transition: all 0.2s ease-in-out; border-bottom: 2px solid transparent; padding-top: 1rem; padding-bottom: 1rem; cursor: pointer; }
         .nav-link.active { border-bottom-color: #3b82f6; color: #3b82f6; font-weight: 600; }
         .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0, 0, 0, 0.5); animation: fadeIn 0.3s; }
-        #cropper-modal, #camera-modal { z-index: 1050; }
+        #cropper-modal, #camera-modal, #photo-edit-modal { z-index: 1050; }
         .modal-content { animation: slideIn 0.3s; }
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
         @keyframes slideIn { from { transform: translateY(-30px); opacity: 0; } to { translateY(0); opacity: 1; } }
@@ -177,17 +177,43 @@
                 const modalTemplates = {
                     ingredient: `<div id="ingredient-modal" class="modal"><div class="modal-content bg-white p-8 rounded-lg shadow-xl w-full max-w-md mx-auto mt-20"><h3 class="text-lg font-bold mb-4">${isEdit ? 'Edit' : 'Add'} Ingredient</h3><form id="ingredient-form"><input type="hidden" name="id"><div class="mb-4"><label class="block text-sm font-medium text-gray-700">Ingredient Name</label><input type="text" name="name" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm"></div><div class="grid grid-cols-2 gap-4"><div><label class="block text-sm font-medium text-gray-700">Cost</label><input type="number" name="cost" step="0.01" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm"></div><div><label class="block text-sm font-medium text-gray-700">Base Unit</label><select name="unit" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm bg-white"><option value="L">L</option><option value="kg">kg</option><option value="ml">ml</option><option value="gm">gm</option></select></div></div><div class="mt-6 flex justify-end space-x-3"><button type="button" data-action="close-modal" class="bg-gray-200 text-gray-800 px-4 py-2 rounded-lg">Cancel</button><button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded-lg">Save</button></div></form></div></div>`,
                     formulation: `<div id="formulation-modal" class="modal"><div class="modal-content bg-white p-8 rounded-lg shadow-xl w-full max-w-2xl mx-auto mt-10"><h3 class="text-lg font-bold mb-4">${isEdit ? 'Edit' : 'Add'} Formulation</h3><form id="formulation-form"><input type="hidden" name="id"><div class="grid grid-cols-1 md:grid-cols-2 gap-6"><input type="text" name="name" required placeholder="Formulation Name" class="p-2 border border-gray-300 rounded-md"><input type="text" name="notes" placeholder="Notes" class="p-2 border border-gray-300 rounded-md"></div><div class="mt-6"><h4 class="text-md font-medium text-gray-800">Bulk Add Ingredients</h4><p class="text-sm text-gray-500 mb-2">Enter ingredients in the format: Name QuantityUnit, ...</p><div class="flex gap-2"><textarea id="bulk-ingredients-input" placeholder="Pelargonic Acid 50ML, Capric Acid 20ML" class="w-full p-2 border border-gray-300 rounded-md" rows="3"></textarea><button type="button" data-action="apply-bulk-add" class="bg-indigo-600 text-white px-4 py-2 rounded-lg self-start">Add</button></div></div><div class="mt-6"><h4 class="text-md font-medium text-gray-800">Ingredients</h4><div id="formulation-ingredients-container" class="mt-2 space-y-3"></div><button type="button" data-action="add-ingredient-row" class="mt-3 text-sm text-blue-600 hover:text-blue-800">+ Add Another Ingredient</button></div><div class="mt-6 border-t pt-4"><p class="font-semibold">Total Cost: <span id="formulation-total-cost">${CURRENCY_SYMBOL}0.00</span></p></div><div class="mt-6 flex justify-end space-x-3"><button type="button" data-action="close-modal" class="bg-gray-200 text-gray-800 px-4 py-2 rounded-lg">Cancel</button><button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded-lg">Save</button></div></form></div></div>`,
-                    trial: `<div id="trial-modal" class="modal"><div class="modal-content bg-white p-8 rounded-lg shadow-xl w-full max-w-3xl mx-auto mt-10"><h3 class="text-lg font-bold mb-4">${isEdit ? 'Edit' : 'Log'} Trial</h3><form id="trial-form"><input type="hidden" name="id"><div class="grid grid-cols-1 md:grid-cols-2 gap-6"><input type="text" name="investigatorName" required placeholder="Investigator Name" class="p-2 border border-gray-300 rounded-md" list="investigator-list"><datalist id="investigator-list"></datalist><select name="formulationId" id="trial-formulation" required class="p-2 border border-gray-300 rounded-md bg-white"></select><input type="text" name="dosage" placeholder="Dosage" class="p-2 border border-gray-300 rounded-md"><input type="text" name="weedSpecies" placeholder="Weed Species" class="p-2 border border-gray-300 rounded-md"><input type="date" name="date" id="trial-date" required class="p-2 border border-gray-300 rounded-md"><select name="result" class="p-2 border border-gray-300 rounded-md bg-white"><option value="">Select Result</option><option value="Excellent">Excellent</option><option value="Good">Good</option><option value="Fair">Fair</option><option value="Poor">Poor</option></select><div class="md:col-span-2 flex items-center gap-2"><input type="checkbox" id="control-finalized" name="controlFinalized" class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"><label for="control-finalized" class="text-sm text-gray-700">Mark final control day (stops counting)</label></div></div><div class="mt-6 p-4 bg-gray-50 rounded-lg"><div class="flex justify-between items-center mb-2"><h4 class="text-md font-medium text-gray-800">Weather Conditions</h4><button type="button" data-action="fetch-weather" class="text-sm text-blue-600 hover:text-blue-800 font-semibold">Fetch Current Weather</button></div><div class="grid grid-cols-2 md:grid-cols-4 gap-4"><input type="text" name="temperature" placeholder="Temp (°C)" class="p-2 border border-gray-300 rounded-md text-sm"><input type="text" name="humidity" placeholder="Humidity (%)" class="p-2 border border-gray-300 rounded-md text-sm"><input type="text" name="windspeed" placeholder="Wind (km/h)" class="p-2 border border-gray-300 rounded-md text-sm"><input type="text" name="rain" placeholder="Rain (mm)" class="p-2 border border-gray-300 rounded-md text-sm"></div></div><div class="mt-6 grid grid-cols-1 gap-6"><textarea name="conclusion" rows="3" placeholder="Conclusion" class="p-2 border border-gray-300 rounded-md"></textarea><textarea name="notes" rows="2" placeholder="Trial Notes" class="p-2 border border-gray-300 rounded-md"></textarea></div><div class="mt-6"><label class="block text-sm font-medium text-gray-700">Add & Crop Photos</label><div class="flex items-center gap-4 mt-2"><input type="file" id="trial-photos" multiple accept="image/*" class="hidden"><label for="trial-photos" class="cursor-pointer bg-white text-blue-700 px-4 py-2 rounded-lg border border-blue-700 hover:bg-blue-50 text-sm font-semibold">Choose Files</label><button type="button" data-action="open-camera" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 text-sm font-semibold">Open Camera</button></div><div id="photo-preview" class="mt-2 flex flex-wrap gap-4"></div></div><div class="mt-6 flex justify-end space-x-3"><button type="button" data-action="close-modal" class="bg-gray-200 text-gray-800 px-4 py-2 rounded-lg">Cancel</button><button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded-lg">Save</button></div></form></div></div>`,
+                    trial: `<div id="trial-modal" class="modal"><div class="modal-content bg-white p-8 rounded-lg shadow-xl w-full max-w-3xl mx-auto mt-10"><h3 class="text-lg font-bold mb-4">${isEdit ? 'Edit' : 'Log'} Trial</h3><form id="trial-form"><input type="hidden" name="id"><div class="grid grid-cols-1 md:grid-cols-2 gap-6"><input type="text" name="investigatorName" required placeholder="Investigator Name" class="p-2 border border-gray-300 rounded-md" list="investigator-list"><datalist id="investigator-list"></datalist><select name="formulationId" id="trial-formulation" required class="p-2 border border-gray-300 rounded-md bg-white"></select><input type="text" name="dosage" placeholder="Dosage" class="p-2 border border-gray-300 rounded-md"><input type="text" name="weedSpecies" placeholder="Weed Species" class="p-2 border border-gray-300 rounded-md"><input type="date" name="date" id="trial-date" required class="p-2 border border-gray-300 rounded-md"><select name="result" class="p-2 border border-gray-300 rounded-md bg-white"><option value="">Select Result</option><option value="Excellent">Excellent</option><option value="Good">Good</option><option value="Fair">Fair</option><option value="Poor">Poor</option></select><div class="flex items-center gap-2"><input type="text" name="location" placeholder="Location Name or Lat,Lon" class="p-2 border border-gray-300 rounded-md w-full"><button type="button" data-action="get-location" class="bg-gray-200 px-3 py-2 rounded-lg text-sm">Get</button></div><div class="md:col-span-2 flex items-center gap-2"><input type="checkbox" id="control-finalized" name="controlFinalized" class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"><label for="control-finalized" class="text-sm text-gray-700">Mark final control day (stops counting)</label></div></div><div class="mt-6 p-4 bg-gray-50 rounded-lg"><div class="flex justify-between items-center mb-2"><h4 class="text-md font-medium text-gray-800">Weather Conditions (Trial Date)</h4><button type="button" data-action="fetch-weather" class="text-sm text-blue-600 hover:text-blue-800 font-semibold">Fetch Weather for Trial Date</button></div><div class="grid grid-cols-2 md:grid-cols-4 gap-4"><input type="text" name="temperature" placeholder="Temp (°C)" class="p-2 border border-gray-300 rounded-md text-sm"><input type="text" name="humidity" placeholder="Humidity (%)" class="p-2 border border-gray-300 rounded-md text-sm"><input type="text" name="windspeed" placeholder="Wind (km/h)" class="p-2 border border-gray-300 rounded-md text-sm"><input type="text" name="rain" placeholder="Rain (mm)" class="p-2 border border-gray-300 rounded-md text-sm"></div></div><div class="mt-6 grid grid-cols-1 gap-6"><textarea name="conclusion" rows="3" placeholder="Conclusion" class="p-2 border border-gray-300 rounded-md"></textarea><textarea name="notes" rows="2" placeholder="Trial Notes" class="p-2 border border-gray-300 rounded-md"></textarea></div><div class="mt-6"><h4 class="text-md font-medium text-gray-800">Add Photos with Dated Weather</h4><div class="flex items-end gap-4 mt-2"><div class="flex-grow"><label for="photo-date" class="block text-sm font-medium text-gray-700">Photo Date</label><input type="date" id="photo-date" class="mt-1 p-2 border border-gray-300 rounded-md w-full"></div><input type="file" id="trial-photos" multiple accept="image/*" class="hidden"><label for="trial-photos" class="cursor-pointer bg-white text-blue-700 px-4 py-2 rounded-lg border border-blue-700 hover:bg-blue-50 text-sm font-semibold">Choose Files</label><button type="button" data-action="open-camera" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 text-sm font-semibold">Camera</button></div><div id="photo-preview" class="mt-2 flex flex-wrap gap-4"></div></div><div class="mt-6 flex justify-end space-x-3"><button type="button" data-action="close-modal" class="bg-gray-200 text-gray-800 px-4 py-2 rounded-lg">Cancel</button><button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded-lg">Save</button></div></form></div></div>`,
                     confirm: `<div id="confirm-modal" class="modal"><div class="modal-content bg-white p-6 rounded-lg shadow-xl w-full max-w-sm mx-auto mt-20"><h3 id="confirm-title" class="text-lg font-bold mb-4">Are you sure?</h3><p id="confirm-message" class="text-gray-600 mb-6">This action cannot be undone.</p><div class="flex justify-end space-x-3"><button data-action="confirm-cancel" class="bg-gray-200 text-gray-800 px-4 py-2 rounded-lg">Cancel</button><button data-action="confirm-ok" class="bg-red-600 text-white px-4 py-2 rounded-lg">Confirm</button></div></div></div>`,
+                    photoEdit: `<div id="photo-edit-modal" class="modal"><div class="modal-content bg-white p-8 rounded-lg shadow-xl w-full max-w-lg mx-auto mt-20"><h3 class="text-lg font-bold mb-4">Edit Photo Details</h3><form id="photo-edit-form"><input type="hidden" name="trialId"><input type="hidden" name="photoIndex"><div class="mb-4"><label class="block text-sm font-medium text-gray-700">Label</label><input type="text" name="label" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm"></div><div class="mb-4"><label class="block text-sm font-medium text-gray-700">Photo Date</label><input type="date" name="date" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm"></div><div class="mt-6 p-4 bg-gray-50 rounded-lg"><h4 class="text-md font-medium text-gray-800 mb-2">Weather Conditions</h4><div class="grid grid-cols-2 md:grid-cols-4 gap-4"><input type="text" name="temp" placeholder="Temp (°C)" class="p-2 border border-gray-300 rounded-md text-sm"><input type="text" name="humidity" placeholder="Humidity (%)" class="p-2 border border-gray-300 rounded-md text-sm"><input type="text" name="wind" placeholder="Wind (km/h)" class="p-2 border border-gray-300 rounded-md text-sm"><input type="text" name="rain" placeholder="Rain (mm)" class="p-2 border border-gray-300 rounded-md text-sm"></div></div><div class="mt-6 flex justify-end space-x-3"><button type="button" data-action="close-modal" class="bg-gray-200 text-gray-800 px-4 py-2 rounded-lg">Cancel</button><button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded-lg">Save Changes</button></div></form></div></div>`,
                     trialDetail: () => {
                         const { trial } = data;
                         if (!trial) return '';
-                        const photos = JSON.parse(trial.PhotoURLs || '[]').map(p => {
-                            const proxiedUrl = p.url ? `https://images.weserv.nl/?url=${encodeURIComponent(p.url)}` : '';
-                            return `<figure class="text-center"><a href="${p.url}" target="_blank"><img src="${proxiedUrl}" class="h-48 w-auto object-cover rounded-md border"></a><figcaption class="text-sm text-gray-600 mt-1">${p.label || ''}</figcaption></figure>`
-                        }).join('');
+                        const photos = JSON.parse(trial.PhotoURLs || '[]');
+                        const photoTable = photos.length > 0 ? `
+                        <div class="mt-4">
+                            <h4 class="text-lg font-semibold mb-2">Photo Log & Weather</h4>
+                            <div class="overflow-x-auto">
+                                <table class="min-w-full divide-y divide-gray-200 text-sm">
+                                    <thead class="bg-gray-50"><tr>
+                                        <th class="px-4 py-2 text-left font-medium text-gray-500">Photo</th>
+                                        <th class="px-4 py-2 text-left font-medium text-gray-500">Label</th>
+                                        <th class="px-4 py-2 text-left font-medium text-gray-500">Date</th>
+                                        <th class="px-4 py-2 text-left font-medium text-gray-500">Weather</th>
+                                        <th class="px-4 py-2 text-left font-medium text-gray-500">Actions</th>
+                                    </tr></thead>
+                                    <tbody class="bg-white divide-y divide-gray-200">
+                                    ${photos.map((p, index) => {
+                                        const proxiedUrl = p.url ? `https://images.weserv.nl/?url=${encodeURIComponent(p.url)}&w=100` : '';
+                                        const weather = p.weather || {};
+                                        return `<tr>
+                                            <td class="p-2"><a href="${p.url}" target="_blank"><img src="${proxiedUrl}" class="h-16 w-16 object-cover rounded-md border"></a></td>
+                                            <td class="p-2">${p.label || '-'}</td>
+                                            <td class="p-2">${p.date ? new Date(p.date).toLocaleDateString() : 'N/A'}</td>
+                                            <td class="p-2">${weather.temp ? `${weather.temp}°C, ${weather.humidity}% H, ${weather.wind} km/h` : 'N/A'}</td>
+                                            <td class="p-2"><button data-action="open-photo-edit-modal" data-trial-id="${trial.ID}" data-photo-index="${index}" class="text-blue-600 hover:text-blue-800 font-semibold text-xs">Edit</button></td>
+                                        </tr>`
+                                    }).join('')}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>` : '<p class="mt-4 text-gray-500">No photos available.</p>';
 
-                        return `<div id="trial-detail-modal" class="modal"><div class="modal-content bg-white p-8 rounded-lg shadow-xl w-full max-w-5xl mx-auto mt-10"><h3 class="text-2xl font-bold mb-6">Herbicide Trial Report: ${trial.FormulationName}</h3><div class="grid grid-cols-1 md:grid-cols-2 gap-8"><div class="space-y-2 text-gray-800"><p><strong>Investigator:</strong> ${trial.InvestigatorName || 'N/A'}</p><p><strong>Dosage:</strong> ${trial.Dosage || 'N/A'}</p><p><strong>Weed Species:</strong> ${trial.WeedSpecies || 'N/A'}</p><p><strong>Date:</strong> ${new Date(trial.Date).toLocaleDateString()}</p><p><strong>Result:</strong> ${trial.Result || 'N/A'}</p>${ trial.Temperature ? `<div class="mt-4 pt-4 border-t"><p class="font-semibold text-gray-500 text-sm">Weather Conditions</p><p><strong>Temperature:</strong> ${trial.Temperature}°C</p><p><strong>Humidity:</strong> ${trial.Humidity}%</p><p><strong>Wind:</strong> ${trial.Windspeed} km/h</p><p><strong>Rain:</strong> ${trial.Rain} mm</p></div>` : '' }<div class="mt-4 pt-4 border-t"><p><strong>Conclusion:</strong> ${trial.Conclusion || 'N/A'}</p><p><strong>Notes:</strong> ${trial.Notes || 'N/A'}</p></div></div><div><h4 class="text-lg font-semibold mb-2">Photos</h4><div class="flex flex-wrap gap-4">${photos || 'No photos available.'}</div></div></div><div class="mt-8 border-t pt-6 flex flex-wrap justify-center gap-3"><button data-action="export-pdf-with-ingredients" data-id="${trial.ID}" class="bg-gray-200 text-gray-800 px-4 py-2 rounded-lg text-sm">Export as PDF with Ingredients</button><button data-action="export-pdf-without-ingredients" data-id="${trial.ID}" class="bg-gray-200 text-gray-800 px-4 py-2 rounded-lg text-sm">Export as PDF without Ingredients</button><button data-action="export-pdf-landscape" data-id="${trial.ID}" class="bg-gray-200 text-gray-800 px-4 py-2 rounded-lg text-sm">Download as PDF Landscape</button><button data-action="export-ppt" data-id="${trial.ID}" class="bg-gray-200 text-gray-800 px-4 py-2 rounded-lg text-sm">Export as PPT</button><button data-action="close-modal" class="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm">Go Back</button></div></div></div>`;
+                        return `<div id="trial-detail-modal" class="modal"><div class="modal-content bg-white p-8 rounded-lg shadow-xl w-full max-w-5xl mx-auto mt-10"><h3 class="text-2xl font-bold mb-6">Herbicide Trial Report: ${trial.FormulationName}</h3><div class="grid grid-cols-1 md:grid-cols-2 gap-8"><div class="space-y-2 text-gray-800"><p><strong>Investigator:</strong> ${trial.InvestigatorName || 'N/A'}</p><p><strong>Location:</strong> ${trial.Location || 'N/A'}</p><p><strong>Dosage:</strong> ${trial.Dosage || 'N/A'}</p><p><strong>Weed Species:</strong> ${trial.WeedSpecies || 'N/A'}</p><p><strong>Date:</strong> ${new Date(trial.Date).toLocaleDateString()}</p><p><strong>Result:</strong> ${trial.Result || 'N/A'}</p>${ trial.Temperature ? `<div class="mt-4 pt-4 border-t"><p class="font-semibold text-gray-500 text-sm">Weather on Trial Date</p><p><strong>Temperature:</strong> ${trial.Temperature}°C</p><p><strong>Humidity:</strong> ${trial.Humidity}%</p><p><strong>Wind:</strong> ${trial.Windspeed} km/h</p><p><strong>Rain:</strong> ${trial.Rain} mm</p></div>` : '' }<div class="mt-4 pt-4 border-t"><p><strong>Conclusion:</strong> ${trial.Conclusion || 'N/A'}</p><p><strong>Notes:</strong> ${trial.Notes || 'N/A'}</p></div></div><div>${photoTable}</div></div><div class="mt-8 border-t pt-6 flex flex-wrap justify-center gap-3"><button data-action="export-pdf-with-ingredients" data-id="${trial.ID}" class="bg-gray-200 text-gray-800 px-4 py-2 rounded-lg text-sm">Export as PDF with Ingredients</button><button data-action="export-pdf-without-ingredients" data-id="${trial.ID}" class="bg-gray-200 text-gray-800 px-4 py-2 rounded-lg text-sm">Export as PDF without Ingredients</button><button data-action="export-pdf-landscape" data-id="${trial.ID}" class="bg-gray-200 text-gray-800 px-4 py-2 rounded-lg text-sm">Download as PDF Landscape</button><button data-action="export-ppt" data-id="${trial.ID}" class="bg-gray-200 text-gray-800 px-4 py-2 rounded-lg text-sm">Export as PPT</button><button data-action="close-modal" class="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm">Go Back</button></div></div></div>`;
                     },
                     organise: `<div id="organise-modal" class="modal"><div class="modal-content bg-white p-8 rounded-lg shadow-xl w-full max-w-md mx-auto mt-20"><h3 class="text-lg font-bold mb-4">Add to Organisation</h3><form id="organise-form"><div class="mb-4"><label class="block text-sm font-medium text-gray-700">Select Existing Organisation</label><select name="organisationId" id="existing-organisations" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm"><option value="">-- Choose existing --</option>${state.organisations.map(o => `<option value="${o.ID}">${o.Name}</option>`).join('')}</select></div><div class="text-center my-2 text-gray-500">OR</div><div class="mb-4"><label class="block text-sm font-medium text-gray-700">Create New Organisation</label><input type="text" name="newOrganisationName" placeholder="e.g., Summer 2025 Variants" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm"></div><div class="mt-6 flex justify-end space-x-3"><button type="button" data-action="close-modal" class="bg-gray-200 text-gray-800 px-4 py-2 rounded-lg">Cancel</button><button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded-lg">Save</button></div></form></div></div>`
                 };
@@ -212,10 +238,11 @@
                 } else {
                     controlDuration = 'N/A';
                 }
-                const photos = JSON.parse(trial.PhotoURLs || '[]').slice(0, 4).map(p => { // Show max 4 thumbnails
-                    const photoUrl = p.url || p; // Handle both object and string array for optimistic updates
+                 const photos = JSON.parse(trial.PhotoURLs || '[]').slice(0, 4).map(p => {
+                    const photoUrl = p.url || p.fileData || p;
+                    if (typeof photoUrl !== 'string' || !photoUrl) return '';
                     const proxiedUrl = photoUrl.startsWith('data:image') ? photoUrl : `https://images.weserv.nl/?url=${encodeURIComponent(photoUrl)}&w=100&h=100&fit=cover`;
-                    return `<img src="${proxiedUrl}" class="h-16 w-16 object-cover rounded-md border" alt="${p.label || 'Trial photo'}">`
+                    return `<img src="${proxiedUrl}" class="h-16 w-16 object-cover rounded-md border" alt="${p.label || 'Trial photo'}">`;
                 }).join('');
 
                 const resultValue = trial.Result || '';
@@ -372,7 +399,9 @@
                 if (type === 'trial') {
                     const form = document.getElementById('trial-form');
                     form.querySelector('#trial-formulation').innerHTML = `<option value="">Select formulation</option>${state.formulations.map(f => `<option value="${f.ID}">${f.Name}</option>`).join('')}`;
-                    form.querySelector('#trial-date').valueAsDate = new Date();
+                    const today = new Date().toISOString().split('T')[0];
+                    form.querySelector('#trial-date').value = today;
+                    form.querySelector('#photo-date').value = today;
                     const investigatorList = document.getElementById('investigator-list');
                     const uniqueInvestigators = [...new Set(state.trials.map(t => t.InvestigatorName).filter(Boolean))];
                     investigatorList.innerHTML = uniqueInvestigators.map(name => `<option value="${name}"></option>`).join('');
@@ -411,24 +440,42 @@
             return ingredients.reduce((acc, currentIng) => {
                 const details = state.ingredients.find(i => i.ID === currentIng.id);
                 if (!details) return acc;
-                const costPerBase = parseFloat(details.Cost);
-                if (isNaN(costPerBase)) return acc;
-                const baseUnit = details.Unit.toLowerCase(), usedUnit = currentIng.unit.toLowerCase();
-                let quantity = parseFloat(currentIng.quantity) || 0;
-                if ((baseUnit === 'l' && usedUnit === 'ml') || (baseUnit === 'kg' && usedUnit === 'gm')) quantity /= 1000;
-                else if ((baseUnit === 'ml' && usedUnit === 'l') || (baseUnit === 'gm' && usedUnit === 'kg')) quantity *= 1000;
-                return acc + (costPerBase * quantity);
+        
+                const baseCost = parseFloat(details.Cost);
+                const baseUnit = details.Unit.toLowerCase();
+                let usedQuantity = parseFloat(currentIng.quantity) || 0;
+                const usedUnit = currentIng.unit.toLowerCase();
+        
+                if (isNaN(baseCost) || isNaN(usedQuantity)) return acc;
+        
+                let quantityInBaseUnit = usedQuantity;
+        
+                if (baseUnit === 'l' && usedUnit === 'ml') {
+                    quantityInBaseUnit = usedQuantity / 1000;
+                } else if (baseUnit === 'ml' && usedUnit === 'l') {
+                    quantityInBaseUnit = usedQuantity * 1000;
+                } else if (baseUnit === 'kg' && usedUnit === 'gm') {
+                    quantityInBaseUnit = usedQuantity / 1000;
+                } else if (baseUnit === 'gm' && usedUnit === 'kg') {
+                    quantityInBaseUnit = usedQuantity * 1000;
+                } else if (baseUnit !== usedUnit) {
+                    console.warn(`Incompatible units for cost calculation: ${baseUnit} and ${usedUnit}. Skipping ingredient.`);
+                    return acc;
+                }
+                
+                return acc + (baseCost * quantityInBaseUnit);
             }, 0);
         }
         
         async function handleFormSubmit(form) {
             if (!form) return;
             const formId = form.getAttribute('id'); const type = formId.replace('-form', '');
-            if (['settings', 'data-source', 'ai', 'organise'].some(t => formId.startsWith(t))) {
+            if (['settings', 'data-source', 'ai', 'organise', 'photo-edit'].some(t => formId.startsWith(t))) {
                  if (formId === 'settings-form') { state.geminiApiKey = document.getElementById('gemini-api-key').value; localStorage.setItem('geminiApiKey', state.geminiApiKey); showToast('API Key saved.'); }
                  if (formId === 'data-source-form') { handleDataSourceSave(form); }
                  if (formId === 'ai-form') { handleAiQuery(document.getElementById('ai-input').value); form.reset(); }
                  if (formId === 'organise-form') { handleOrganiseSubmit(form); }
+                 if (formId === 'photo-edit-form') { handlePhotoEditSubmit(form); }
                  return;
             }
 
@@ -452,17 +499,16 @@
                     const formulation = state.formulations.find(f => f.ID === formData.formulationId);
                     if (!formulation) throw new Error('Please select a valid formulation.');
                     localRecord = {
-                        ID: tempId, InvestigatorName: formData.investigatorName, FormulationID: formData.formulationId, FormulationName: formulation.Name, Dosage: formData.dosage,
+                        ID: tempId, InvestigatorName: formData.investigatorName, Location: formData.location, FormulationID: formData.formulationId, FormulationName: formulation.Name, Dosage: formData.dosage,
                         WeedSpecies: formData.weedSpecies, Date: formData.date, Result: formData.result, Conclusion: formData.conclusion, Notes: formData.notes,
                         Temperature: formData.temperature, Humidity: formData.humidity, Windspeed: formData.windspeed, Rain: formData.rain,
-                        ControlFinalized: form.querySelector('#control-finalized').checked, PhotoURLs: JSON.stringify(state.croppedPhotosData.map(p => ({ url: p.isExisting ? p.fileData : p.fileData, label: p.label })))
+                        ControlFinalized: form.querySelector('#control-finalized').checked, PhotoURLs: JSON.stringify(state.croppedPhotosData)
                     };
                 } else if (type === 'ingredient') {
                     localRecord = { ID: tempId, Name: formData.name, Cost: formData.cost, Unit: formData.unit };
                 } else {
                     throw new Error(`Unknown form type: ${type}`);
                 }
-
 
                 if (isUpdate) {
                     const index = state[type + 's'].findIndex(item => item.ID === id);
@@ -475,13 +521,12 @@
                 switchPage(state.currentPage);
                 showToast(`${type.charAt(0).toUpperCase() + type.slice(1)} saved! Syncing...`);
                 
-                // --- Background Sync ---
                 let finalPayload = { ...formData };
-                if(id) finalPayload.id = id; // Add id for updates
+                if(id) finalPayload.id = id;
                 if (type === 'formulation') finalPayload.ingredients = JSON.parse(localRecord.IngredientsJSON);
                 if (type === 'trial') {
                     const newPhotos = state.croppedPhotosData.filter(p => !p.isExisting);
-                    const existingPhotos = state.croppedPhotosData.filter(p => p.isExisting).map(p => ({ url: p.fileData, label: p.label }));
+                    const existingPhotos = state.croppedPhotosData.filter(p => p.isExisting).map(p => ({ url: p.fileData, label: p.label, date: p.date, weather: p.weather }));
                     const uploadedPhotos = await uploadPhotos(newPhotos);
                     finalPayload.photoURLs = [...existingPhotos, ...uploadedPhotos];
                 }
@@ -493,8 +538,7 @@
                     const tempRecord = state[type + 's'].find(item => item.ID === localRecord.ID);
                     if (tempRecord) tempRecord.ID = savedRecord.ID;
                 }
-                 // Finalize photo URLs in state and re-render
-                if (type === 'trial') {
+                 if (type === 'trial') {
                     const recordInState = state.trials.find(t => t.ID === (isUpdate ? id : savedRecord.ID));
                     if (recordInState) recordInState.PhotoURLs = JSON.stringify(finalPayload.photoURLs);
                     switchPage('trials');
@@ -552,9 +596,12 @@
                  const formulationSelect = form.querySelector('[name="formulationId"]');
                  formulationSelect.innerHTML = state.formulations.map(f => `<option value="${f.ID}">${f.Name}</option>`).join('');
                  formulationSelect.value = data.FormulationID;
+                 form.querySelector('[name="location"]').value = data.Location || '';
                  form.querySelector('[name="dosage"]').value = data.Dosage;
                  form.querySelector('[name="weedSpecies"]').value = data.WeedSpecies;
-                 form.querySelector('[name="date"]').value = new Date(data.Date).toISOString().split('T')[0];
+                 const trialDate = new Date(data.Date).toISOString().split('T')[0];
+                 form.querySelector('[name="date"]').value = trialDate;
+                 form.querySelector('#photo-date').value = trialDate;
                  form.querySelector('[name="result"]').value = data.Result || '';
                  form.querySelector('#control-finalized').checked = data.ControlFinalized || false;
                  form.querySelector('[name="conclusion"]').value = data.Conclusion;
@@ -563,7 +610,7 @@
                  form.querySelector('[name="humidity"]').value = data.Humidity || '';
                  form.querySelector('[name="windspeed"]').value = data.Windspeed || '';
                  form.querySelector('[name="rain"]').value = data.Rain || '';
-                 state.croppedPhotosData = JSON.parse(data.PhotoURLs || '[]').map((p, i) => ({ fileData: p.url, label: p.label, fileName: `existing_image_${i}.jpg`, isExisting: true }));
+                 state.croppedPhotosData = JSON.parse(data.PhotoURLs || '[]').map((p, i) => ({ ...p, fileData: p.url, isExisting: true }));
                  updatePhotoPreview();
              } else if (formId === 'formulation-form') {
                   form.querySelector('[name="name"]').value = data.Name;
@@ -646,12 +693,44 @@
         function processPhotoQueue() { if (state.photoQueue.length === 0) { if (state.currentTrialIdForCamera) { state.currentTrialIdForCamera = null; } return; }; const file = state.photoQueue.shift(); const reader = new FileReader(); reader.onload = e => openCropper(e.target.result); reader.readAsDataURL(file); }
         function openCropper(imageData) { imageToCrop.src = imageData; cropperModal.style.display = 'block'; if(cropper) cropper.destroy(); cropper = new Cropper(imageToCrop, { viewMode: 0, autoCrop: false, background: false, movable: true, zoomable: true, scalable: true, rotatable: true }); }
         
-        async function cropAndSaveImage() { 
-            const croppedImageData = cropper.getCroppedCanvas().toDataURL('image/jpeg', 0.9); 
-            const photoData = { fileData: croppedImageData, fileName: `cropped_${Date.now()}.jpg`, mimeType: 'image/jpeg', label: '' };
-            if (state.currentTrialIdForCamera) { const trialId = state.currentTrialIdForCamera; closeCropper(); await handleQuickPhotoAdd(trialId, [photoData]); } 
-            else { state.croppedPhotosData.push(photoData); updatePhotoPreview(); closeCropper(); }
+        async function cropAndSaveImage() {
+            const croppedImageData = cropper.getCroppedCanvas().toDataURL('image/jpeg', 0.9);
+            const form = document.getElementById('trial-form');
+            let photoDate, locationStr;
+            if (form) {
+                photoDate = form.querySelector('#photo-date').value;
+                locationStr = form.querySelector('[name="location"]').value;
+            } else { // Handle quick add from trial card
+                photoDate = new Date().toISOString().split('T')[0];
+                const trial = state.trials.find(t => t.ID === state.currentTrialIdForCamera);
+                locationStr = trial?.Location || '';
+            }
+
+            let weather = null;
+            if (locationStr && photoDate) {
+                let coords = await resolveLocationToCoords(locationStr);
+                if (coords) {
+                    const weatherResult = await fetchWeather(coords.lat, coords.lon, photoDate);
+                    if (weatherResult && weatherResult.data) {
+                        weather = weatherResult.data;
+                    } else if (weatherResult && weatherResult.error) {
+                        showToast(weatherResult.error, 'error');
+                    }
+                } else {
+                    showToast('Could not resolve photo location to coordinates.', 'error');
+                }
+            } else if (!locationStr) {
+                // Silently fail if no location, or prompt user if needed.
+            }
+            
+            const photoData = { fileData: croppedImageData, fileName: `cropped_${Date.now()}.jpg`, mimeType: 'image/jpeg', label: '', date: photoDate, weather };
+            if (state.currentTrialIdForCamera) {
+                const trialId = state.currentTrialIdForCamera; closeCropper(); await handleQuickPhotoAdd(trialId, [photoData]);
+            } else {
+                state.croppedPhotosData.push(photoData); updatePhotoPreview(); closeCropper();
+            }
         }
+
 
         function closeCropper() { if(cropper) cropper.destroy(); cropper = null; cropperModal.style.display = 'none'; if (state.photoQueue.length > 0) processPhotoQueue(); else { state.currentTrialIdForCamera = null; } }
         
@@ -668,8 +747,13 @@
         
         async function uploadPhotos(photosData) {
             if (!photosData.length) return [];
-            const results = await Promise.all(photosData.map(photoData => apiCall('uploadPhoto', photoData, false)));
-            return results.filter(r => r && r.url).map((result, index) => ({ url: result.url, label: photosData[index].label }));
+            const results = await Promise.all(photosData.map(photoData => apiCall('uploadPhoto', { fileData: photoData.fileData, fileName: photoData.fileName, mimeType: photoData.mimeType }, false)));
+            return results.filter(r => r && r.url).map((result, index) => ({ 
+                url: result.url, 
+                label: photosData[index].label,
+                date: photosData[index].date,
+                weather: photosData[index].weather
+            }));
         }
 
         async function handleQuickPhotoAdd(trialId, photosData) {
@@ -678,7 +762,7 @@
             if (trialIndex === -1) return showToast('Trial not found locally.', 'error');
             const originalTrial = JSON.parse(JSON.stringify(state.trials[trialIndex]));
             const existingPhotos = JSON.parse(originalTrial.PhotoURLs || '[]');
-            const newPhotosForUI = photosData.map(p => ({ url: p.fileData, label: p.label }));
+            const newPhotosForUI = photosData.map(p => ({ ...p, url: p.fileData }));
             state.trials[trialIndex].PhotoURLs = JSON.stringify([...existingPhotos, ...newPhotosForUI]);
             switchPage('trials');
             try {
@@ -722,26 +806,328 @@
             closeCamera(); openCropper(canvasElement.toDataURL('image/jpeg', 0.9));
         }
 
-        async function fetchWeather() {
-            const form = document.getElementById('trial-form'); if (!form) return; showToast('Fetching weather...');
-            const fill = async (lat, lon) => {
-                try {
-                    const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,rain,wind_speed_10m`);
-                    if (!res.ok) throw new Error('Could not fetch weather.');
-                    const { current } = await res.json();
-                    form.querySelector('[name="temperature"]').value = current.temperature_2m;
-                    form.querySelector('[name="humidity"]').value = current.relative_humidity_2m;
-                    form.querySelector('[name="windspeed"]').value = current.wind_speed_10m;
-                    form.querySelector('[name="rain"]').value = current.rain;
+        async function geocodeLocation(name) {
+            if (!name) return null;
+            try {
+                const res = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(name)}&count=1`);
+                if (!res.ok) throw new Error('Geocoding API failed');
+                const data = await res.json();
+                if (data.results && data.results.length > 0) {
+                    const { latitude, longitude, name, admin1 } = data.results[0];
+                    return { lat: latitude, lon: longitude, name: admin1 ? `${name}, ${admin1}` : name };
+                }
+                return null;
+            } catch (e) { console.error('Geocoding failed:', e); return null; }
+        }
+        
+        async function resolveLocationToCoords(locationStr) {
+            if (!locationStr) return null;
+            const coordMatch = locationStr.match(/^(-?\d+\.?\d*),\s*(-?\d+\.?\d*)$/);
+            if (coordMatch) {
+                return { lat: parseFloat(coordMatch[1]), lon: parseFloat(coordMatch[2]) };
+            } else {
+                const geoResult = await geocodeLocation(locationStr);
+                return geoResult ? { lat: geoResult.lat, lon: geoResult.lon, name: geoResult.name } : null;
+            }
+        }
+
+        function getGeoLocation(callback) {
+            if (!navigator.geolocation) return showToast('Geolocation is not supported by your browser.', 'error');
+            showToast('Fetching location...');
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    const { latitude, longitude } = position.coords;
+                    callback({ lat: latitude, lon: longitude });
+                }, () => showToast('Unable to retrieve location. Please check browser/OS permissions and try again.', 'error')
+            );
+        }
+
+       async function fetchWeather(lat, lon, date) {
+            if (!lat || !lon || !date) return { error: "Latitude, longitude, and date are required." };
+        
+            const selectedDate = new Date(date);
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const dateStr = selectedDate.toISOString().split('T')[0];
+        
+            let apiUrl;
+            let isForecast = selectedDate >= today;
+        
+            if (isForecast) {
+                const sixteenDaysFromNow = new Date(today);
+                sixteenDaysFromNow.setDate(today.getDate() + 16);
+                if (selectedDate > sixteenDaysFromNow) {
+                    return { error: "Forecast is only available for the next 16 days." };
+                }
+                apiUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=temperature_2m_max,relative_humidity_2m_mean,precipitation_sum,wind_speed_10m_max&timezone=auto`;
+            } else {
+                // For past dates, get daily stats for most things, but get hourly for humidity and average it.
+                apiUrl = `https://archive-api.open-meteo.com/v1/archive?latitude=${lat}&longitude=${lon}&start_date=${dateStr}&end_date=${dateStr}&daily=temperature_2m_max,precipitation_sum,wind_speed_10m_max&hourly=relative_humidity_2m&timezone=auto`;
+            }
+        
+            try {
+                const res = await fetch(apiUrl);
+                if (!res.ok) {
+                     console.error('Weather API response:', await res.text());
+                     throw new Error('Weather API request failed');
+                }
+                const data = await res.json();
+                
+                if (data.error) {
+                    return { error: `Weather API: ${data.reason}` };
+                }
+        
+                if (isForecast) {
+                    if (data.daily && data.daily.time && data.daily.time.length > 0) {
+                        const dateIndex = data.daily.time.indexOf(dateStr);
+                        if (dateIndex === -1) return { error: "Forecast data not available for this specific date." };
+        
+                        return { data: {
+                            temp: data.daily.temperature_2m_max[dateIndex],
+                            humidity: data.daily.relative_humidity_2m_mean[dateIndex],
+                            wind: data.daily.wind_speed_10m_max[dateIndex],
+                            rain: data.daily.precipitation_sum[dateIndex]
+                        }};
+                    }
+                } else { // Handle archive data
+                    if (data.daily && data.hourly) {
+                        const dateIndex = data.daily.time.indexOf(dateStr);
+                        if (dateIndex === -1) return { error: "Archive data not available for this specific date." };
+        
+                        // Calculate average humidity from hourly data
+                        let avgHumidity = null;
+                        if (data.hourly.relative_humidity_2m && data.hourly.relative_humidity_2m.length > 0) {
+                            const sum = data.hourly.relative_humidity_2m.reduce((a, b) => a + b, 0);
+                            avgHumidity = Math.round(sum / data.hourly.relative_humidity_2m.length);
+                        }
+        
+                        return { data: {
+                            temp: data.daily.temperature_2m_max[dateIndex],
+                            humidity: avgHumidity,
+                            wind: data.daily.wind_speed_10m_max[dateIndex],
+                            rain: data.daily.precipitation_sum[dateIndex]
+                        }};
+                    }
+                }
+                
+                return { error: "No weather data returned from API."};
+            } catch (e) {
+                console.error("Weather fetch failed:", e);
+                return { error: e.message };
+            }
+        }
+
+        async function fetchWeatherForTrialDate() {
+            const form = document.getElementById('trial-form'); if (!form) return;
+            const locationInput = form.querySelector('[name="location"]');
+            const trialDate = form.querySelector('[name="date"]').value;
+            if (!locationInput.value || !trialDate) { return showToast('Please set location and trial date first.', 'error'); }
+            
+            showToast('Resolving location & fetching weather...');
+            const coords = await resolveLocationToCoords(locationInput.value);
+            
+            if (coords) {
+                if(coords.name) locationInput.value = coords.name; // Update input with resolved name
+                const weatherResult = await fetchWeather(coords.lat, coords.lon, trialDate);
+                if (weatherResult && weatherResult.data) {
+                    const weather = weatherResult.data;
+                    form.querySelector('[name="temperature"]').value = weather.temp;
+                    form.querySelector('[name="humidity"]').value = weather.humidity;
+                    form.querySelector('[name="windspeed"]').value = weather.wind;
+                    form.querySelector('[name="rain"]').value = weather.rain;
                     showToast('Weather data populated.', 'success');
-                } catch (e) { showToast(e.message, 'error'); }
-            };
-            if (navigator.geolocation) { navigator.geolocation.getCurrentPosition(pos => fill(pos.coords.latitude, pos.coords.longitude), () => { showToast('Could not get location. Using default.', 'error'); fill(12.97, 77.59); }); } 
-            else { showToast('Geolocation not supported.', 'error'); fill(12.97, 77.59); }
+                } else {
+                    const errorMessage = weatherResult ? weatherResult.error : 'Failed to fetch weather data.';
+                    showToast(errorMessage, 'error');
+                }
+            } else {
+                showToast('Could not find coordinates for that location name.', 'error');
+            }
         }
 
         function getImageAsBase64(url) { return new Promise((resolve) => { const img = new Image(); img.crossOrigin = 'Anonymous'; img.onload = () => { const canvas = document.createElement('canvas'); canvas.width = img.width; canvas.height = img.height; const ctx = canvas.getContext('2d'); ctx.drawImage(img, 0, 0); resolve(canvas.toDataURL('image/jpeg')); }; img.onerror = () => { console.error('Could not load image for PDF:', url); resolve(null); }; img.src = `https://images.weserv.nl/?url=${encodeURIComponent(url)}`; });}
         
+        async function generateTrialPdf(trialId, options = {}) {
+            const { withIngredients = false, orientation = 'p' } = options;
+            const trial = state.trials.find(t => t.ID === trialId);
+            if (!trial) return;
+            showToast('Generating PDF...');
+
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF({ orientation });
+            const primary = [22, 160, 133], secondary = [44, 62, 80];
+            let currentY = 0;
+
+            // Header
+            doc.setFillColor(...primary);
+            doc.rect(0, 0, doc.internal.pageSize.width, 25, 'F');
+            doc.setFontSize(22).setTextColor(255).setFont(undefined, 'bold').text("Herbicide Trial Report", doc.internal.pageSize.width / 2, 15, { align: 'center' });
+            doc.setFontSize(16).setTextColor(...secondary).text(trial.FormulationName, 14, 35);
+
+            // Side-by-side Trial Info and Weather Tables
+            const trialBody = [
+                ['Investigator:', trial.InvestigatorName || 'N/A'],
+                ['Date:', new Date(trial.Date).toLocaleDateString()],
+                ['Dosage:', trial.Dosage || 'N/A'],
+                ['Weed Species:', trial.WeedSpecies || 'N/A'],
+                ['Result:', trial.Result || 'N/A'],
+                ['Location:', trial.Location || 'N/A']
+            ];
+            
+            const weatherBody = [
+                ['Temperature:', `${trial.Temperature||'N/A'}°C`],
+                ['Humidity:', `${trial.Humidity||'N/A'}%`],
+                ['Wind:', `${trial.Windspeed||'N/A'} km/h`],
+                ['Rain:', `${trial.Rain||'N/A'} mm`]
+            ];
+
+            const tableConfig = {
+                theme: 'striped',
+                headStyles: { fillColor: secondary },
+                columnStyles: { 0: { cellWidth: 40, fontStyle: 'bold' } },
+            };
+
+            doc.autoTable({
+                ...tableConfig,
+                startY: 42,
+                head: [['Trial Information', '']],
+                body: trialBody,
+                tableWidth: doc.internal.pageSize.width / 2 - 21,
+                margin: { left: 14 },
+            });
+            const trialTableEnd = doc.autoTable.previous.finalY;
+
+            let weatherTableEnd = 0;
+            if (trial.Temperature) {
+                doc.autoTable({
+                    ...tableConfig,
+                    startY: 42,
+                    head: [['Weather on Trial Date', '']],
+                    body: weatherBody,
+                    tableWidth: doc.internal.pageSize.width / 2 - 21,
+                    margin: { left: doc.internal.pageSize.width / 2 + 7 },
+                });
+                weatherTableEnd = doc.autoTable.previous.finalY;
+            }
+            
+            currentY = Math.max(trialTableEnd, weatherTableEnd);
+
+            // Text Blocks for Conclusion and Notes
+            const addTextBlock = (title, content, startY) => {
+                let y = startY;
+                const pageHeight = doc.internal.pageSize.height;
+                if (y > pageHeight - 50) { doc.addPage(); y = 20; }
+                y += 10;
+                doc.setFontSize(14).setTextColor(...secondary).text(title, 14, y);
+                y += 6;
+                doc.setFontSize(10).setTextColor(80);
+                const split = doc.splitTextToSize(String(content || 'N/A'), doc.internal.pageSize.width - 28);
+                if (y + (split.length * 4) > pageHeight - 20) { doc.addPage(); y = 20; }
+                doc.text(split, 14, y);
+                return y + (split.length * 4) + 2;
+            };
+
+            currentY = addTextBlock('Conclusion', trial.Conclusion, currentY);
+            currentY = addTextBlock('Notes', trial.Notes, currentY);
+
+            // Ingredients Table (if requested)
+            if (withIngredients) {
+                const f = state.formulations.find(f => f.ID === trial.FormulationID);
+                if (f && f.IngredientsJSON) {
+                    const ings = JSON.parse(f.IngredientsJSON || '[]');
+                    if (ings.length > 0) {
+                        if (currentY > doc.internal.pageSize.height - 60) {
+                            doc.addPage();
+                            currentY = 20;
+                        }
+                        doc.autoTable({
+                            startY: currentY + 5,
+                            head: [['Ingredient', 'Quantity', 'Unit']],
+                            body: ings.map(i => [i.name, i.quantity, i.unit]),
+                            theme: 'grid',
+                            headStyles: { fillColor: primary }
+                        });
+                        currentY = doc.autoTable.previous.finalY;
+                    }
+                }
+            }
+            
+            // Photo Section
+            const photos = JSON.parse(trial.PhotoURLs || '[]');
+            if (photos.length > 0) {
+                // Check for space for the title
+                if (currentY > doc.internal.pageSize.height - 60) {
+                    doc.addPage();
+                    currentY = 20;
+                } else {
+                     currentY += 10;
+                }
+
+                doc.setFontSize(14).setTextColor(...secondary).text('Photo Log & Weather Conditions', 14, currentY);
+                currentY += 5;
+                
+                const photoTableBody = photos.map(p => {
+                    const weather = p.weather || {};
+                    return [
+                        p.label || '-',
+                        p.date ? new Date(p.date).toLocaleDateString() : 'N/A',
+                        weather.temp ? `${weather.temp}°C` : 'N/A',
+                        weather.humidity ? `${weather.humidity}%` : 'N/A',
+                        weather.wind ? `${weather.wind} km/h` : 'N/A',
+                        weather.rain ? `${weather.rain} mm` : 'N/A',
+                    ];
+                });
+
+                doc.autoTable({
+                    startY: currentY,
+                    head: [['Label', 'Date', 'Temp', 'Humidity', 'Wind', 'Rain']],
+                    body: photoTableBody,
+                    theme: 'grid',
+                    headStyles: { fillColor: primary }
+                });
+                currentY = doc.autoTable.previous.finalY;
+                
+                // Add images below the table
+                currentY += 10;
+                doc.setFontSize(14).setTextColor(...secondary).text('Photos', 14, currentY);
+                currentY += 8;
+                
+                const pW = (doc.internal.pageSize.width - 42) / 2; // two photos per row
+                const pH = pW * 0.75; // maintain aspect ratio
+                let x = 14;
+
+                for (const p of photos) {
+                    if (p.url) {
+                        const imgData = await getImageAsBase64(p.url);
+                        if (imgData) {
+                            if (currentY + pH > doc.internal.pageSize.height - 20) {
+                                doc.addPage();
+                                currentY = 20;
+                                x = 14;
+                            }
+                            doc.addImage(imgData, 'JPEG', x, currentY, pW, pH);
+                            doc.setFontSize(9).setTextColor(100).text(p.label || '', x + pW / 2, currentY + pH + 4, { align: 'center' });
+                            
+                            x += pW + 14;
+                            if (x >= doc.internal.pageSize.width - 14) {
+                                x = 14;
+                                currentY += pH + 15;
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Footer with page numbers
+            const pageCount = doc.internal.getNumberOfPages();
+            for (let i = 1; i <= pageCount; i++) {
+                doc.setPage(i);
+                doc.setFontSize(8).setTextColor(150).text(`Page ${i}/${pageCount}`, doc.internal.pageSize.width / 2, doc.internal.pageSize.height - 10, { align: 'center' });
+            }
+
+            doc.save(`Trial_${trial.FormulationName}_${trial.Date}.pdf`);
+        }
+
         function updateOrganiseBar() {
             const bar = document.getElementById('organise-bar'); const countEl = document.getElementById('selected-trials-count'); if (!bar || !countEl) return;
             if (state.selectedTrials.length > 0) { countEl.textContent = `${state.selectedTrials.length} trial(s) selected`; bar.classList.remove('hidden'); } 
@@ -800,35 +1186,6 @@
             if (confirm) { showConfirmation('Clear All Data?', 'This will permanently delete everything. Are you sure?', clearAction); } else { await clearAction(); }
         }
         
-        async function generateTrialPdf(trialId, options = {}) {
-            const { withIngredients = false, orientation = 'p' } = options; const trial = state.trials.find(t => t.ID === trialId); if (!trial) return; showToast('Generating PDF...');
-            const { jsPDF } = window.jspdf; const doc = new jsPDF({ orientation }); const primary = [22, 160, 133], secondary = [44, 62, 80]; let finalY = 0;
-            doc.setFillColor(...primary); doc.rect(0, 0, doc.internal.pageSize.width, 25, 'F'); doc.setFontSize(22).setTextColor(255).setFont(undefined, 'bold').text("Herbicide Trial Report", doc.internal.pageSize.width / 2, 15, { align: 'center' });
-            doc.setFontSize(16).setTextColor(...secondary).text(trial.FormulationName, 14, 35);
-            const trialBody = [
-                ['Investigator:', trial.InvestigatorName || 'N/A'],
-                ['Date:', new Date(trial.Date).toLocaleDateString()],
-                ['Dosage:', trial.Dosage || 'N/A'],
-                ['Weed Species:', trial.WeedSpecies || 'N/A'],
-                ['Result:', trial.Result || 'N/A'],
-            ];
-            const weatherBody = [
-                ['Temperature:', `${trial.Temperature||'N/A'}°C`],
-                ['Humidity:', `${trial.Humidity||'N/A'}%`],
-                ['Wind:', `${trial.Windspeed||'N/A'} km/h`],
-                ['Rain:', `${trial.Rain||'N/A'} mm`],
-            ];
-            doc.autoTable({ startY: 42, head: [['Trial Information', '']], body: trialBody, theme: 'striped', headStyles: { fillColor: secondary }, columnStyles: { 0: { cellWidth: 40, fontStyle: 'bold' } }, didDrawPage: data => finalY = data.cursor.y });
-            if (trial.Temperature) { doc.autoTable({ startY: finalY + 2, head: [['Weather', '']], body: weatherBody, theme: 'striped', headStyles: { fillColor: secondary }, columnStyles: { 0: { cellWidth: 40, fontStyle: 'bold' } }, didDrawPage: data => finalY = data.cursor.y }); }
-            const addTextBlock = (title, content) => { finalY += 10; doc.setFontSize(14).setTextColor(...secondary).text(title, 14, finalY); finalY += 6; doc.setFontSize(10).setTextColor(80); const split = doc.splitTextToSize(String(content || 'N/A'), doc.internal.pageSize.width - 28); doc.text(split, 14, finalY); finalY += (split.length * 4) + 5; };
-            addTextBlock('Conclusion', trial.Conclusion); addTextBlock('Notes', trial.Notes);
-            if (withIngredients) { const f = state.formulations.find(f => f.ID === trial.FormulationID); if (f && f.IngredientsJSON) { const ings = JSON.parse(f.IngredientsJSON || '[]'); if (ings.length > 0) { doc.autoTable({ startY: finalY + 5, head: [['Ingredient', 'Quantity', 'Unit']], body: ings.map(i => [i.name, i.quantity, i.unit]), theme: 'grid', headStyles: { fillColor: primary }, didDrawPage: data => finalY = data.cursor.y }); } else { doc.text('No ingredients.', 14, finalY + 10); finalY += 15; } } else { doc.text('Ingredients not available.', 14, finalY + 10); finalY += 15; } }
-            const photos = JSON.parse(trial.PhotoURLs || '[]');
-            if (photos.length > 0) { finalY += 10; doc.setFontSize(14).setTextColor(...secondary).text('Photos', 14, finalY); finalY += 8; const pW = 85, pH = 65; let x = 14; for (const p of photos) { if (p.url) { const imgData = await getImageAsBase64(p.url); if (imgData) { if (finalY + pH > doc.internal.pageSize.height - 20) { doc.addPage(); finalY = 20; } doc.addImage(imgData, 'JPEG', x, finalY, pW, pH); doc.setFontSize(9).setTextColor(100).text(p.label || '', x + pW / 2, finalY + pH + 4, { align: 'center' }); x += pW + 5; if (x + pW > doc.internal.pageSize.width - 14) { x = 14; finalY += pH + 15; } } } } }
-            const pageCount = doc.internal.getNumberOfPages(); for(let i = 1; i <= pageCount; i++) { doc.setPage(i); doc.setFontSize(8).setTextColor(150).text(`Page ${i}/${pageCount}`, doc.internal.pageSize.width / 2, doc.internal.pageSize.height - 10, { align: 'center' }); }
-            doc.save(`Trial_${trial.FormulationName}_${trial.Date}.pdf`);
-        }
-        
         async function exportToPpt(trialId) {
             const trial = state.trials.find(t => t.ID === trialId); if (!trial) return; showToast('Generating PPTX...');
             let pptx = new PptxGenJS();
@@ -866,12 +1223,13 @@
                     e.stopPropagation();
                 }
 
-                const { action, type, id, index, sort } = target.dataset;
+                const { action, type, id, index, sort, trialId, photoIndex } = target.dataset;
 
                 const actions = {
                     openModal: () => handleOpenModal(type),
                     'open-organise-modal': () => openModal('organise'),
-                    'fetch-weather': fetchWeather,
+                     'get-location': () => { const form = document.getElementById('trial-form'); if (form) { getGeoLocation(coords => { form.querySelector('[name="location"]').value = `${coords.lat.toFixed(5)}, ${coords.lon.toFixed(5)}`; showToast('Location captured!', 'success'); }); } },
+                    'fetch-weather': fetchWeatherForTrialDate,
                     edit: () => handleEdit(type, id),
                     delete: () => handleDelete(type, id),
                     'view-trial': () => openTrialDetail(id),
@@ -898,6 +1256,7 @@
                     'remove-ingredient-row': () => { target.closest('.formulation-ingredient-row').remove(); updateFormulationCost(); },
                     'remove-photo': () => { state.croppedPhotosData.splice(index, 1); updatePhotoPreview(); },
                     'reset-data-sources': () => { localStorage.removeItem('appSettings'); loadSettings(); showToast('Data sources reset.', 'success'); initializeApp(); },
+                    'open-photo-edit-modal': () => handleOpenPhotoEditModal(trialId, photoIndex),
                     'clear-chat': () => {
                         showConfirmation('Clear Chat History?', 'This will permanently delete the conversation.', () => {
                             state.aiChatHistory = [];
@@ -984,6 +1343,89 @@
                 if(showOverlay) loadingOverlay.classList.add('hidden');
             }
         }
+        
+        function handleOpenPhotoEditModal(trialId, photoIndex) {
+            const trial = state.trials.find(t => t.ID === trialId);
+            if (!trial) return;
+            const photos = JSON.parse(trial.PhotoURLs || '[]');
+            const photoData = photos[photoIndex];
+            if (!photoData) return;
+
+            openModal('photoEdit', true);
+            setTimeout(() => {
+                const form = document.getElementById('photo-edit-form');
+                form.querySelector('[name="trialId"]').value = trialId;
+                form.querySelector('[name="photoIndex"]').value = photoIndex;
+                form.querySelector('[name="label"]').value = photoData.label || '';
+                form.querySelector('[name="date"]').value = photoData.date || '';
+                if(photoData.weather) {
+                    form.querySelector('[name="temp"]').value = photoData.weather.temp || '';
+                    form.querySelector('[name="humidity"]').value = photoData.weather.humidity || '';
+                    form.querySelector('[name="wind"]').value = photoData.weather.wind || '';
+                    form.querySelector('[name="rain"]').value = photoData.weather.rain || '';
+                }
+                form.querySelector('[name="date"]').addEventListener('change', async (e) => {
+                    const newDate = e.target.value;
+                    const location = trial.Location;
+                    if (!location || !newDate) return;
+                    const coords = await resolveLocationToCoords(location);
+                    if (!coords) return showToast('Trial location is not valid for weather fetching.', 'error');
+                    const weatherResult = await fetchWeather(coords.lat, coords.lon, newDate);
+                     if (weatherResult && weatherResult.data) {
+                        const weather = weatherResult.data;
+                        form.querySelector('[name="temp"]').value = weather.temp;
+                        form.querySelector('[name="humidity"]').value = weather.humidity;
+                        form.querySelector('[name="wind"]').value = weather.wind;
+                        form.querySelector('[name="rain"]').value = weather.rain;
+                        showToast('Weather updated for new date.', 'success');
+                    } else {
+                        showToast(weatherResult.error || 'Could not fetch weather for new date.', 'error');
+                    }
+                });
+            }, 50);
+        }
+
+        async function handlePhotoEditSubmit(form) {
+            const formData = new FormData(form);
+            const trialId = formData.get('trialId');
+            const photoIndex = parseInt(formData.get('photoIndex'), 10);
+            const trialIndex = state.trials.findIndex(t => t.ID === trialId);
+
+            if (trialIndex === -1 || isNaN(photoIndex)) return showToast('Error saving photo details.', 'error');
+            
+            const trial = state.trials[trialIndex];
+            const photos = JSON.parse(trial.PhotoURLs || '[]');
+            const originalPhotoData = photos[photoIndex];
+
+            photos[photoIndex] = {
+                ...originalPhotoData,
+                label: formData.get('label'),
+                date: formData.get('date'),
+                weather: {
+                    temp: formData.get('temp'),
+                    humidity: formData.get('humidity'),
+                    wind: formData.get('wind'),
+                    rain: formData.get('rain')
+                }
+            };
+            
+            trial.PhotoURLs = JSON.stringify(photos);
+            state.trials[trialIndex] = trial;
+
+            closeModal();
+            openTrialDetail(trialId); // Re-render the detail view
+            showToast('Photo details updated. Syncing...');
+
+            apiCall('updateTrialRecord', { id: trialId, PhotoURLs: trial.PhotoURLs }, false).then(result => {
+                if(!result) {
+                    showToast('Sync failed. Please try saving the main trial again.', 'error');
+                } else {
+                    showToast('Sync complete!', 'success');
+                }
+            });
+        }
+
+
         bindEventListeners();
         initializeApp();
     });
