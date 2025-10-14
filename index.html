@@ -1,1 +1,2725 @@
-ASDF
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Herbicide Trial Manager</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- External Libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.12/cropper.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.12/cropper.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.min.js"></script>
+    <!-- Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Charting Library -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+    <style>
+        :root {
+            --primary-color: #0f766e; /* Teal-700 */
+            --secondary-color: #0d9488; /* Teal-600 */
+            --accent-color: #f59e0b; /* Amber-500 */
+            --bg-color: #f1f5f9; /* Slate-100 */
+            --card-bg: #ffffff;
+            --text-color: #334155; /* Slate-700 */
+            --heading-color: #1e293b; /* Slate-800 */
+        }
+        body { 
+            font-family: 'Inter', sans-serif; 
+            background-color: var(--bg-color);
+            color: var(--text-color);
+        }
+        .modal { 
+            display: none; position: fixed; z-index: 1000; left: 0; top: 0; 
+            width: 100%; height: 100%; overflow: auto; 
+            background-color: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(4px);
+            animation: fadeIn 0.3s; 
+        }
+        #cropper-modal, #camera-modal, #photo-edit-modal, #weed-modal { z-index: 1050; }
+        .modal-content { animation: slideIn 0.3s; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes contentFadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes slideIn { from { transform: translateY(-30px); opacity: 0; } to { translateY(0); opacity: 1; } }
+        
+        .toast { visibility: hidden; min-width: 250px; margin-left: -125px; background-color: #333; color: #fff; text-align: center; border-radius: 8px; padding: 16px; position: fixed; z-index: 2000; left: 50%; bottom: 30px; font-size: 17px; opacity: 0; transition: all 0.5s; box-shadow: 0 4px 15px rgba(0,0,0,0.2); }
+        .toast.show { visibility: visible; opacity: 1; bottom: 50px; }
+        .toast.success { background-image: linear-gradient(to right, var(--primary-color), var(--secondary-color)); }
+        .toast.error { background-color: #dc3545; }
+        
+        #cropper-container > img { max-width: 100%; max-height: 70vh; }
+        #camera-modal video { width: 100%; max-height: 70vh; border-radius: 8px; background-color: #000;}
+        
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; }
+        ::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: #a3aab3; }
+
+        /* Result Colors */
+        .result-excellent { background-color: #d1fae5; color: #065f46; }
+        .result-good { background-color: #dbeafe; color: #1e40af; }
+        .result-fair { background-color: #fef3c7; color: #92400e; }
+        .result-poor { background-color: #fee2e2; color: #991b1b; }
+        .result-none { background-color: #e5e7eb; color: #4b5563; }
+
+        .btn-primary {
+            background-image: linear-gradient(to right, var(--primary-color), var(--secondary-color));
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06);
+        }
+        .btn-primary:hover {
+            opacity: 0.9;
+            box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05);
+            transform: translateY(-2px);
+        }
+
+        .form-input {
+             border-color: #cbd5e1;
+             transition: all 0.2s ease-in-out;
+        }
+        .form-input:focus {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 2px rgba(15, 118, 110, 0.3);
+            outline: none;
+        }
+
+        .dashboard-card {
+            animation: contentFadeIn 0.5s ease-out forwards;
+        }
+
+    </style>
+</head>
+<body class="antialiased">
+    <!-- CONFIGURATION -->
+    <script>
+        const DEFAULT_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz1sjCUNHIApYaBzFsRER4MV9OEClo09_yteHnBfq-60KlG1UB8-m0Lz2cJTvyixQxnUA/exec';
+        const CURRENCY_SYMBOL = '₹';
+    </script>
+    
+    <!-- App Layout Container -->
+    <div class="flex h-screen bg-slate-100">
+        <!-- Sidebar Navigation -->
+        <aside class="w-64 bg-white shadow-lg flex flex-col">
+            <div class="h-20 flex items-center justify-center border-b bg-gradient-to-r from-teal-700 to-teal-600 text-white">
+                <h1 class="text-xl font-bold tracking-wider flex items-center gap-2">
+                    <i data-lucide="flask-conical"></i>
+                    <span>Trial Manager</span>
+                </h1>
+            </div>
+            <nav id="sidebar-nav" class="flex-grow p-4 space-y-2">
+                <a class="flex items-center gap-3 px-4 py-2 text-slate-600 rounded-lg hover:bg-teal-50 hover:text-teal-700 transition-all duration-200" data-page="dashboard">
+                    <i data-lucide="layout-dashboard"></i><span>Dashboard</span>
+                </a>
+                 <a class="flex items-center gap-3 px-4 py-2 text-slate-600 rounded-lg hover:bg-teal-50 hover:text-teal-700 transition-all duration-200" data-page="formulations">
+                    <i data-lucide="flame"></i><span>Formulations</span>
+                </a>
+                <a class="flex items-center gap-3 px-4 py-2 text-slate-600 rounded-lg hover:bg-teal-50 hover:text-teal-700 transition-all duration-200" data-page="trials">
+                    <i data-lucide="clipboard-list"></i><span>Trials</span>
+                </a>
+                <a class="flex items-center gap-3 px-4 py-2 text-slate-600 rounded-lg hover:bg-teal-50 hover:text-teal-700 transition-all duration-200" data-page="organisations">
+                    <i data-lucide="folder-kanban"></i><span>Organisations</span>
+                </a>
+                <a class="flex items-center gap-3 px-4 py-2 text-slate-600 rounded-lg hover:bg-teal-50 hover:text-teal-700 transition-all duration-200" data-page="ingredients">
+                    <i data-lucide="shopping-cart"></i><span>Ingredient Costs</span>
+                </a>
+                <a class="flex items-center gap-3 px-4 py-2 text-slate-600 rounded-lg hover:bg-teal-50 hover:text-teal-700 transition-all duration-200" data-page="aiAssistant">
+                    <i data-lucide="sparkles"></i><span>AI Assistant</span>
+                </a>
+                <div class="pt-4 border-t">
+                    <a class="flex items-center gap-3 px-4 py-2 text-slate-600 rounded-lg hover:bg-teal-50 hover:text-teal-700 transition-all duration-200" data-page="dataMgmt">
+                        <i data-lucide="database"></i><span>Data Mgmt</span>
+                    </a>
+                    <a class="flex items-center gap-3 px-4 py-2 text-slate-600 rounded-lg hover:bg-teal-50 hover:text-teal-700 transition-all duration-200" data-page="settings">
+                        <i data-lucide="settings"></i><span>Settings</span>
+                    </a>
+                </div>
+            </nav>
+        </aside>
+
+        <!-- Main Content Area -->
+        <div class="flex-1 flex flex-col overflow-hidden">
+            <header class="bg-white/80 backdrop-blur-sm border-b border-slate-200 h-20 flex items-center px-8">
+                 <h2 id="page-title" class="text-2xl font-bold text-slate-800"></h2>
+            </header>
+            <main id="main-content" class="flex-1 overflow-x-hidden overflow-y-auto p-8"></main>
+        </div>
+    </div>
+    
+    <!-- Modals & Overlays -->
+    <div id="modal-container"></div>
+    <div id="cropper-modal" class="modal">
+        <div class="modal-content bg-white p-6 rounded-lg shadow-xl w-full max-w-4xl mx-auto mt-10">
+            <h3 class="text-lg font-bold mb-4 text-slate-800">Crop & Adjust Image</h3>
+            <div id="cropper-container" class="mb-4 bg-slate-200 rounded-lg">
+                <img id="image-to-crop">
+            </div>
+            <div class="flex justify-between items-center">
+                <div>
+                    <button data-action="rotate-left" class="bg-slate-200 text-slate-800 px-4 py-2 rounded-lg hover:bg-slate-300 transition">Rotate Left</button>
+                    <button data-action="rotate-right" class="bg-slate-200 text-slate-800 px-4 py-2 rounded-lg hover:bg-slate-300 transition">Rotate Right</button>
+                </div>
+                <div class="flex space-x-3">
+                    <button data-action="cancel-crop" class="bg-slate-200 text-slate-800 px-4 py-2 rounded-lg hover:bg-slate-300 transition">Cancel</button>
+                    <button data-action="crop-image" class="btn-primary text-white px-4 py-2 rounded-lg">Crop & Save</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div id="camera-modal" class="modal"><div class="modal-content bg-white p-6 rounded-lg shadow-xl w-full max-w-2xl mx-auto mt-10"><h3 class="text-lg font-bold mb-4 text-slate-800">Live Camera</h3><video id="camera-stream" autoplay playsinline></video><canvas id="camera-canvas" class="hidden"></canvas><div class="mt-4 flex justify-end space-x-3"><button data-action="close-camera" class="bg-slate-200 text-slate-800 px-4 py-2 rounded-lg">Cancel</button><button data-action="capture-photo" class="btn-primary text-white px-4 py-2 rounded-lg">Capture</button></div></div></div>
+    <div id="loading-overlay" class="fixed inset-0 bg-slate-900 bg-opacity-60 z-50 flex items-center justify-center hidden"><div class="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-teal-400"></div></div>
+    <div id="toast" class="toast"></div>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', () => {
+        let state = { 
+            currentPage: 'dashboard', 
+            ingredients: [], 
+            formulations: [], 
+            trials: [], 
+            organisations: [], 
+            selectedTrials: [], 
+            photoQueue: [], 
+            croppedPhotosData: [], 
+            currentTrialIdForCamera: null,
+            geminiApiKey: 'AIzaSyBCqB9_qqEehIQjOostYu9Y6WQTOJD2WkI',
+            aiChatHistory: [],
+            aiAttachedImage: { fileData: null, mimeType: null },
+            isSettingsLocked: true,
+            settings: {
+                scriptUrl: DEFAULT_SCRIPT_URL,
+                sheetId: '19lqihTQ9SLuuVJJiOtoy8ukfbXMeEZwwB0PjHAMDyPc',
+                folderId: '14UTh_QWhCRoaQ0JvfKeg7LZvOGZRF_rT'
+            },
+            charts: {}
+        };
+        const mainContent = document.getElementById('main-content');
+        const modalContainer = document.getElementById('modal-container');
+        const loadingOverlay = document.getElementById('loading-overlay');
+        const toast = document.getElementById('toast');
+        const cropperModal = document.getElementById('cropper-modal');
+        const imageToCrop = document.getElementById('image-to-crop');
+        const cameraModal = document.getElementById('camera-modal');
+        const videoElement = document.getElementById('camera-stream');
+        const canvasElement = document.getElementById('camera-canvas');
+        let cropper = null;
+        let cameraStream = null;
+
+        function safeJsonParse(jsonString, defaultValue = []) {
+            if (!jsonString || typeof jsonString !== 'string') {
+                return defaultValue;
+            }
+            try {
+                const parsed = JSON.parse(jsonString);
+                // Handle double-encoded JSON
+                if (typeof parsed === 'string') {
+                    return JSON.parse(parsed);
+                }
+                return parsed;
+            } catch (e) {
+                console.warn('Failed to parse JSON, returning default value:', jsonString);
+                return defaultValue;
+            }
+        }
+
+        const templates = {
+            page: (pageId) => ({
+                dashboard: `
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
+                        <div class="dashboard-card bg-white p-6 rounded-xl shadow-lg flex items-center gap-4">
+                            <div class="bg-teal-100 p-3 rounded-full"><i data-lucide="list-checks" class="text-teal-600"></i></div>
+                            <div>
+                                <p class="text-sm text-slate-500">Total Trials</p>
+                                <p id="total-trials" class="text-2xl font-bold text-slate-800">0</p>
+                            </div>
+                        </div>
+                        <div class="dashboard-card bg-white p-6 rounded-xl shadow-lg flex items-center gap-4" style="animation-delay: 0.1s;">
+                            <div class="bg-amber-100 p-3 rounded-full"><i data-lucide="loader-2" class="text-amber-600"></i></div>
+                            <div>
+                                <p class="text-sm text-slate-500">Active Trials</p>
+                                <p id="active-trials" class="text-2xl font-bold text-slate-800">0</p>
+                            </div>
+                        </div>
+                        <div class="dashboard-card bg-white p-6 rounded-xl shadow-lg flex items-center gap-4" style="animation-delay: 0.2s;">
+                            <div class="bg-green-100 p-3 rounded-full"><i data-lucide="check-circle-2" class="text-green-600"></i></div>
+                            <div>
+                                <p class="text-sm text-slate-500">Completed Trials</p>
+                                <p id="completed-trials" class="text-2xl font-bold text-slate-800">0</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <div class="lg:col-span-2 dashboard-card bg-white p-6 rounded-xl shadow-lg" style="animation-delay: 0.3s;">
+                            <h3 class="font-semibold text-slate-800 mb-4">Trials Over Time</h3>
+                             <div class="h-64"><canvas id="trials-over-time-chart"></canvas></div>
+                        </div>
+                        <div class="dashboard-card bg-white p-6 rounded-xl shadow-lg flex flex-col" style="animation-delay: 0.4s;">
+                            <h3 class="font-semibold text-slate-800 mb-4">Results Breakdown</h3>
+                            <div class="h-64 flex items-center justify-center"><canvas id="results-breakdown-chart"></canvas></div>
+                        </div>
+                    </div>
+                     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-6">
+                        <div class="dashboard-card bg-white p-6 rounded-xl shadow-lg" style="animation-delay: 0.5s;">
+                             <h3 class="font-semibold text-slate-800 mb-4">Top 5 Expensive Formulations</h3>
+                             <ul id="top-formulations-list" class="space-y-3 text-sm"></ul>
+                        </div>
+                         <div class="dashboard-card bg-white p-6 rounded-xl shadow-lg" style="animation-delay: 0.6s;">
+                             <h3 class="font-semibold text-slate-800 mb-4">Top 5 Targeted Weeds</h3>
+                             <ul id="top-weeds-list" class="space-y-3 text-sm"></ul>
+                        </div>
+                         <div class="dashboard-card bg-white p-6 rounded-xl shadow-lg" style="animation-delay: 0.7s;">
+                             <h3 class="font-semibold text-slate-800 mb-4">Average Weather Conditions</h3>
+                             <div id="avg-weather-conditions" class="grid grid-cols-2 gap-y-4 gap-x-2 text-left mt-4"></div>
+                        </div>
+                    </div>
+                `,
+                formulations: `<div class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4"><div class="flex-grow"><input type="search" data-action="filter" data-type="formulation" placeholder="Search formulations by name..." class="w-full form-input px-4 py-2 border rounded-lg"></div><div><button data-action="openModal" data-type="formulation" class="btn-primary text-white px-4 py-2 rounded-lg shadow w-full md:w-auto flex items-center gap-2"><i data-lucide="plus"></i> New Formulation</button></div></div><div id="formulations-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>`,
+                trials: `<div class="bg-white p-4 rounded-lg shadow-md mb-6"><div class="flex justify-between items-center"><h3 class="font-semibold text-gray-800 mb-2">Filters & Sorting</h3><div class="flex gap-2"><button data-action="sort-trials" data-sort="date" class="text-sm bg-gray-200 px-3 py-1 rounded-md">Sort by Date</button><button data-action="sort-trials" data-sort="result" class="text-sm bg-gray-200 px-3 py-1 rounded-md">Sort by Result</button></div></div><div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4"><input type="search" data-action="filter" data-type="trial-search" placeholder="Search investigator, species..." class="w-full px-4 py-2 border rounded-lg form-input"><select data-action="filter" data-type="trial-formulation" class="p-2 border rounded-lg bg-white form-input"><option value="">Filter by Formulation</option></select><div class="grid grid-cols-2 gap-2"><input type="date" data-action="filter" data-type="trial-start-date" class="p-2 border rounded-lg form-input" title="Start Date"><input type="date" data-action="filter" data-type="trial-end-date" class="p-2 border rounded-lg form-input" title="End Date"></div></div></div><div class="flex justify-end mb-6"><button data-action="openModal" data-type="trial" class="btn-primary text-white px-4 py-2 rounded-lg shadow w-full sm:w-auto flex items-center gap-2"><i data-lucide="plus"></i> Log New Trial</button></div><div id="trials-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div><div id="organise-bar" class="hidden fixed bottom-10 left-1/2 -translate-x-1/2 bg-gray-800 text-white py-3 px-6 rounded-lg shadow-lg flex items-center gap-4 z-20"><span id="selected-trials-count"></span><button data-action="open-organise-modal" class="bg-indigo-500 hover:bg-indigo-600 px-4 py-2 rounded-md text-sm font-semibold">Add to Organisation</button></div>`,
+                organisations: `<div class="flex justify-between items-center mb-6"><div><p class="text-sm text-gray-500">Group trials together for easier analysis.</p></div></div><div id="organisations-list" class="space-y-8"></div>`,
+                ingredients: `<div class="bg-white p-6 rounded-lg shadow mb-8"><h3 class="text-lg font-medium text-gray-800">Bulk Add Ingredients</h3><p class="text-sm text-gray-500 mb-2">Enter multiple ingredients in the format: Name Cost Unit, ... (e.g., Glyphosate 15000 L, Paraquat 8000 kg)</p><div class="flex gap-2"><textarea id="bulk-ingredients-cost-input" placeholder="IngredientA 100 kg, IngredientB 50 L" class="w-full p-2 border border-gray-300 rounded-md form-input" rows="4"></textarea><button type="button" data-action="apply-bulk-add-cost" class="bg-indigo-600 text-white px-4 py-2 rounded-lg self-start">Add Bulk</button></div></div><div class="flex justify-end items-center mb-6"><button data-action="openModal" data-type="ingredient" class="btn-primary text-white px-4 py-2 rounded-lg shadow flex items-center gap-2"><i data-lucide="plus"></i> Add New Cost</button></div><div id="ingredients-list" class="bg-white p-6 rounded-lg shadow"></div>`,
+                aiAssistant: `<div class="bg-white p-6 rounded-lg shadow">
+                                <div class="flex justify-between items-center mb-4">
+                                    <h2 class="text-xl font-semibold text-gray-700">AI Assistant</h2>
+                                    <button data-action="clear-chat" class="text-sm bg-gray-200 px-3 py-1 rounded-md hover:bg-gray-300">Clear History</button>
+                                </div>
+                                <div id="ai-chat-box" class="border rounded-lg p-4 overflow-y-auto mb-4 bg-gray-50 flex flex-col gap-2 h-96"></div>
+                                <div id="ai-image-preview-container" class="relative hidden w-20 mb-2">
+                                    <img id="ai-image-preview" class="h-20 w-20 object-cover rounded-md border">
+                                    <button data-action="remove-ai-image" class="absolute -top-2 -right-2 bg-red-500 text-white rounded-full h-5 w-5 flex items-center justify-center text-xs font-bold">&times;</button>
+                                </div>
+                                <form id="ai-form" class="flex gap-4">
+                                    <input type="file" id="ai-image-input" class="hidden" accept="image/*">
+                                    <button type="button" data-action="attach-ai-image" class="p-2 border rounded-lg bg-gray-100 hover:bg-gray-200">
+                                        <i data-lucide="paperclip" class="h-5 w-5 text-gray-600"></i>
+                                    </button>
+                                    <input type="text" id="ai-input" placeholder="Ask about your data, or attach an image..." class="flex-grow p-2 border rounded-lg form-input" required>
+                                    <button type="submit" class="btn-primary text-white px-5 py-2 rounded-lg flex items-center gap-2">Send <i data-lucide="send" class="h-4 w-4"></i></button>
+                                </form>
+                              </div>`,
+                dataMgmt: `<div class="space-y-8">
+                                <div>
+                                    <h2 class="text-xl font-semibold text-gray-700 mb-4">Export Data</h2>
+                                    <div class="bg-white p-6 rounded-lg shadow">
+                                        <p class="text-gray-600 mb-4">Download your data for backup. ZIP includes photos, while Standalone HTML is a complete, viewable offline archive of the app.</p>
+                                        <div class="flex flex-wrap gap-4">
+                                            <button data-action="export-json" class="bg-green-600 text-white px-4 py-2 rounded-lg">Export to JSON</button>
+                                            <button data-action="export-zip" class="bg-green-700 text-white px-4 py-2 rounded-lg">Export with Photos (ZIP)</button>
+                                            <button data-action="export-standalone" class="bg-blue-700 text-white px-4 py-2 rounded-lg">Export Standalone HTML</button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div>
+                                    <h2 class="text-xl font-semibold text-gray-700 mb-4">Import Data</h2>
+                                    <div class="bg-white p-6 rounded-lg shadow">
+                                        <p class="text-gray-600 mb-4">Upload a previously exported JSON or ZIP file to restore your data. <strong class="text-red-600">This will overwrite all current data.</strong></p>
+                                        <input type="file" id="import-file-input" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" accept=".json,.zip">
+                                        <button data-action="import-data" class="mt-4 bg-blue-600 text-white px-4 py-2 rounded-lg" disabled>Import Data</button>
+                                    </div>
+                                </div>
+                                <div>
+                                    <h2 class="text-xl font-semibold text-gray-700 mb-4">Clear All Data</h2>
+                                    <div class="bg-white p-6 rounded-lg shadow border-red-300">
+                                        <p class="text-gray-600 mb-4">Permanently delete all your data. <strong class="text-red-600">This action cannot be undone.</strong></p>
+                                        <button data-action="clear-data" class="bg-red-600 text-white px-4 py-2 rounded-lg">Clear All Data</button>
+                                    </div>
+                                </div>
+                            </div>`,
+                settings: `<div class="bg-white p-6 rounded-lg shadow space-y-8">
+                                <div>
+                                    <h2 class="text-xl font-semibold text-gray-700 mb-4">AI Integration</h2>
+                                     <form id="settings-form" class="space-y-4">
+                                        <div>
+                                            <label for="gemini-api-key" class="block text-sm font-medium text-gray-700">Google Gemini API Key</label>
+                                            <input type="password" id="gemini-api-key" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm form-input" placeholder="For AI Assistant & Weed ID">
+                                        </div>
+                                        <button type="submit" class="btn-primary text-white px-5 py-2 rounded-lg">Save Key</button>
+                                     </form>
+                                </div>
+                                <div class="border-t pt-8">
+                                    <h3 class="text-lg font-medium text-gray-900">Data Source Settings</h3>
+                                    <p class="mt-1 text-sm text-gray-600">For multi-user support, you can connect the app to your own Google Sheet and Drive folder.</p>
+                                    <form id="data-source-form" class="mt-4 space-y-4">
+                                        <div>
+                                            <label for="script-url" class="block text-sm font-medium text-gray-700">Apps Script Web App URL</label>
+                                            <input type="url" id="script-url" placeholder="Paste the full URL of your deployed Apps Script" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 form-input">
+                                        </div>
+                                        <div>
+                                            <label for="sheet-url" class="block text-sm font-medium text-gray-700">Google Sheet URL</label>
+                                            <input type="url" id="sheet-url" placeholder="Paste the full URL of your Google Sheet copy" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 form-input">
+                                        </div>
+                                        <div>
+                                            <label for="folder-url" class="block text-sm font-medium text-gray-700">Google Drive Photo Folder URL</label>
+                                            <input type="url" id="folder-url" placeholder="Paste the full URL of your photo folder" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 form-input">
+                                        </div>
+                                        <div class="flex items-center justify-between pt-2">
+                                            <button type="submit" class="btn-primary text-white px-4 py-2 rounded-lg">Save Data Sources</button>
+                                            <button type="button" data-action="reset-data-sources" class="text-sm text-gray-500 hover:text-gray-700">Reset to Default</button>
+                                        </div>
+                                    </form>
+                                </div>
+                                <div class="border-t pt-8">
+                                    <h3 class="text-lg font-medium text-gray-900">Troubleshooting</h3>
+                                     <p class="mt-1 text-sm text-gray-600">If you are experiencing issues, clear the application cache and perform a hard reload.</p>
+                                     <div class="mt-4">
+                                        <button data-action="force-reload" class="bg-red-600 text-white px-4 py-2 rounded-lg">Clear Cache & Reload App</button>
+                                     </div>
+                                </div>
+                           </div>`,
+            })[pageId] || '',
+            modal: (modalId, isEdit = false, data = {}) => {
+                const modalTemplates = {
+                    ingredient: `<div id="ingredient-modal" class="modal"><div class="modal-content bg-white p-8 rounded-lg shadow-xl w-full max-w-md mx-auto mt-20"><h3 class="text-lg font-bold mb-4 text-slate-800">${isEdit ? 'Edit' : 'Add'} Ingredient</h3><form id="ingredient-form"><input type="hidden" name="id"><div class="mb-4"><label class="block text-sm font-medium text-gray-700">Ingredient Name</label><input type="text" name="name" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm form-input"></div><div class="grid grid-cols-2 gap-4"><div><label class="block text-sm font-medium text-gray-700">Cost</label><input type="number" name="cost" step="0.01" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm form-input"></div><div><label class="block text-sm font-medium text-gray-700">Base Unit</label><select name="unit" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm bg-white form-input"><option value="L">L</option><option value="kg">kg</option><option value="ml">ml</option><option value="gm">gm</option></select></div></div><div class="mt-6 flex justify-end space-x-3"><button type="button" data-action="close-modal" class="bg-slate-200 text-slate-800 px-4 py-2 rounded-lg transition hover:bg-slate-300">Cancel</button><button type="submit" class="btn-primary text-white px-4 py-2 rounded-lg">Save</button></div></form></div></div>`,
+                    formulation: `<div id="formulation-modal" class="modal"><div class="modal-content bg-white p-8 rounded-lg shadow-xl w-full max-w-2xl mx-auto mt-10"><h3 class="text-lg font-bold mb-4 text-slate-800">${isEdit ? 'Edit' : 'Add'} Formulation</h3><form id="formulation-form"><input type="hidden" name="id"><div class="grid grid-cols-1 md:grid-cols-2 gap-6"><input type="text" name="name" required placeholder="Formulation Name" class="p-2 border rounded-md form-input"><input type="text" name="notes" placeholder="Notes" class="p-2 border rounded-md form-input"></div><div class="mt-6"><h4 class="text-md font-medium text-gray-800">Bulk Add Ingredients</h4><p class="text-sm text-gray-500 mb-2">Enter ingredients in the format: Name QuantityUnit, ...</p><div class="flex gap-2"><textarea id="bulk-ingredients-input" placeholder="Pelargonic Acid 50ML, Capric Acid 20ML" class="w-full p-2 border rounded-md form-input" rows="3"></textarea><button type="button" data-action="apply-bulk-add" class="bg-indigo-600 text-white px-4 py-2 rounded-lg self-start">Add</button></div></div><div class="mt-6"><h4 class="text-md font-medium text-gray-800">Ingredients</h4><div id="formulation-ingredients-container" class="mt-2 space-y-3"></div><button type="button" data-action="add-ingredient-row" class="mt-3 text-sm text-teal-600 hover:text-teal-800 font-semibold flex items-center gap-1"><i data-lucide="plus-circle" class="h-4 w-4"></i> Add Ingredient</button></div><div class="mt-6 border-t pt-4"><p class="font-semibold text-slate-700">Total Cost: <span id="formulation-total-cost" class="text-teal-700">${CURRENCY_SYMBOL}0.00</span></p></div><div class="mt-6 flex justify-end space-x-3"><button type="button" data-action="close-modal" class="bg-slate-200 text-slate-800 px-4 py-2 rounded-lg transition hover:bg-slate-300">Cancel</button><button type="submit" class="btn-primary text-white px-4 py-2 rounded-lg">Save</button></div></form></div></div>`,
+                    trial: `<div id="trial-modal" class="modal"><div class="modal-content bg-white p-8 rounded-lg shadow-xl w-full max-w-3xl mx-auto mt-10"><h3 class="text-lg font-bold mb-4 text-slate-800">${isEdit ? 'Edit' : 'Log'} Trial</h3><form id="trial-form"><input type="hidden" name="id"><div class="grid grid-cols-1 md:grid-cols-2 gap-6"><input type="text" name="investigatorName" required placeholder="Investigator Name" class="p-2 border rounded-md form-input" list="investigator-list"><datalist id="investigator-list"></datalist><select name="formulationId" id="trial-formulation" required class="p-2 border rounded-md bg-white form-input"></select><input type="text" name="dosage" placeholder="Dosage" class="p-2 border rounded-md form-input"><input type="text" name="weedSpecies" placeholder="Weed Species" class="p-2 border rounded-md form-input"><input type="date" name="date" id="trial-date" required class="p-2 border rounded-md form-input"><select name="result" class="p-2 border rounded-md bg-white form-input"><option value="">Select Result</option><option value="Excellent">Excellent</option><option value="Good">Good</option><option value="Fair">Fair</option><option value="Poor">Poor</option></select><div class="flex items-center gap-2"><input type="text" name="location" placeholder="Location Name or Lat,Lon" class="p-2 border rounded-md w-full form-input"><button type="button" data-action="get-location" class="bg-slate-200 p-2 rounded-lg text-sm"><i data-lucide="map-pin"></i></button></div></div>
+                    <div class="md:col-span-2 p-4 bg-slate-50 rounded-lg space-y-3 mt-6">
+                         <div class="flex items-center gap-2">
+                            <input type="checkbox" id="is-completed" name="isCompleted" class="h-4 w-4 rounded border-gray-300 text-teal-600 focus:ring-teal-500">
+                            <label for="is-completed" class="text-sm font-medium text-gray-800">Mark trial as Completed</label>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <input type="checkbox" id="control-finalized" name="controlFinalized" class="h-4 w-4 rounded border-gray-300 text-teal-600 focus:ring-teal-500">
+                            <label for="control-finalized" class="text-sm font-medium text-gray-800">Stop counting control days</label>
+                        </div>
+                        <div id="finalization-details" class="grid grid-cols-2 gap-4 hidden">
+                             <div>
+                                <label for="finalization-date" class="block text-xs font-medium text-gray-600">Finalization Date</label>
+                                <input type="date" name="finalizationDate" id="finalization-date" class="p-2 border rounded-md text-sm form-input w-full bg-slate-100">
+                            </div>
+                            <div>
+                                <label for="final-control-duration" class="block text-xs font-medium text-gray-600">Final Control Days</label>
+                                <input type="number" name="finalControlDuration" id="final-control-duration" placeholder="Days" class="p-2 border rounded-md text-sm form-input w-full">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mt-6 p-4 bg-slate-50 rounded-lg"><div class="flex justify-between items-center mb-2"><h4 class="text-md font-medium text-gray-800">Weather Conditions (Trial Date)</h4><button type="button" data-action="fetch-weather" class="text-sm text-teal-600 hover:text-teal-800 font-semibold">Fetch Weather</button></div><div class="grid grid-cols-2 md:grid-cols-4 gap-4"><input type="text" name="temperature" placeholder="Temp (°C)" class="p-2 border rounded-md text-sm form-input"><input type="text" name="humidity" placeholder="Humidity (%)" class="p-2 border rounded-md text-sm form-input"><input type="text" name="windspeed" placeholder="Wind (km/h)" class="p-2 border rounded-md text-sm form-input"><input type="text" name="rain" placeholder="Rain (mm)" class="p-2 border rounded-md text-sm form-input"></div></div><div class="mt-6 grid grid-cols-1 gap-6"><textarea name="conclusion" rows="3" placeholder="Conclusion" class="p-2 border rounded-md form-input"></textarea><textarea name="notes" rows="2" placeholder="Trial Notes" class="p-2 border rounded-md form-input"></textarea></div><div class="mt-6"><h4 class="text-md font-medium text-gray-800">Add Photos with Dated Weather</h4><div class="flex items-end gap-4 mt-2"><div class="flex-grow"><label for="photo-date" class="block text-sm font-medium text-gray-700">Photo Date</label><input type="date" id="photo-date" class="mt-1 p-2 border rounded-md w-full form-input"></div><input type="file" id="trial-photos" multiple accept="image/*" class="hidden"><label for="trial-photos" class="cursor-pointer bg-white text-teal-700 px-4 py-2 rounded-lg border border-teal-700 hover:bg-teal-50 text-sm font-semibold">Choose Files</label><button type="button" data-action="open-camera" class="btn-primary text-white px-4 py-2 rounded-lg text-sm font-semibold">Camera</button></div><div id="photo-preview" class="mt-2 flex flex-wrap gap-4"></div></div><div class="mt-6 flex justify-end space-x-3"><button type="button" data-action="close-modal" class="bg-slate-200 text-slate-800 px-4 py-2 rounded-lg transition hover:bg-slate-300">Cancel</button><button type="submit" class="btn-primary text-white px-4 py-2 rounded-lg">Save</button></div></form></div></div>`,
+                    confirm: `<div id="confirm-modal" class="modal"><div class="modal-content bg-white p-6 rounded-lg shadow-xl w-full max-w-sm mx-auto mt-20"><h3 id="confirm-title" class="text-lg font-bold mb-4">Are you sure?</h3><p id="confirm-message" class="text-gray-600 mb-6">This action cannot be undone.</p><div class="flex justify-end space-x-3"><button data-action="confirm-cancel" class="bg-slate-200 text-slate-800 px-4 py-2 rounded-lg transition hover:bg-slate-300">Cancel</button><button data-action="confirm-ok" class="bg-red-600 text-white px-4 py-2 rounded-lg">Confirm</button></div></div></div>`,
+                    photoEdit: `<div id="photo-edit-modal" class="modal"><div class="modal-content bg-white p-8 rounded-lg shadow-xl w-full max-w-lg mx-auto mt-20"><h3 class="text-lg font-bold mb-4 text-slate-800">Edit Photo Details</h3><form id="photo-edit-form"><input type="hidden" name="trialId"><input type="hidden" name="photoIndex"><div class="mb-4"><label class="block text-sm font-medium text-gray-700">Label</label><input type="text" name="label" class="mt-1 block w-full px-3 py-2 border rounded-md shadow-sm form-input"></div><div class="mb-4"><label class="block text-sm font-medium text-gray-700">Photo Date</label><input type="date" name="date" class="mt-1 block w-full px-3 py-2 border rounded-md shadow-sm form-input"></div><div class="mt-6 p-4 bg-gray-50 rounded-lg"><h4 class="text-md font-medium text-gray-800 mb-2">Weather Conditions</h4><div class="grid grid-cols-2 md:grid-cols-4 gap-4"><input type="text" name="temp" placeholder="Temp (°C)" class="p-2 border rounded-md text-sm form-input"><input type="text" name="humidity" placeholder="Humidity (%)" class="p-2 border rounded-md text-sm form-input"><input type="text" name="wind" placeholder="Wind (km/h)" class="p-2 border rounded-md text-sm form-input"><input type="text" name="rain" placeholder="Rain (mm)" class="p-2 border rounded-md text-sm form-input"></div></div><div class="mt-6 flex justify-end space-x-3"><button type="button" data-action="close-modal" class="bg-slate-200 text-slate-800 px-4 py-2 rounded-lg transition hover:bg-slate-300">Cancel</button><button type="submit" class="btn-primary text-white px-4 py-2 rounded-lg">Save Changes</button></div></form></div></div>`,
+                    password: `<div id="password-modal" class="modal"><div class="modal-content bg-white p-8 rounded-lg shadow-xl w-full max-w-sm mx-auto mt-20"><h3 class="text-lg font-bold mb-4 text-slate-800">Enter Password</h3><p class="text-sm text-gray-500 mb-4">You need a password to access this page.</p><form id="password-form" data-target-page="${data.targetPage || ''}"><div class="mb-4"><label for="settings-password" class="block text-sm font-medium text-gray-700">Password</label><input type="password" id="settings-password" name="password" required class="mt-1 block w-full px-3 py-2 border rounded-md shadow-sm form-input"></div><div class="mt-6 flex justify-end space-x-3"><button type="button" data-action="close-modal" class="bg-slate-200 text-slate-800 px-4 py-2 rounded-lg transition hover:bg-slate-300">Cancel</button><button type="submit" class="btn-primary text-white px-4 py-2 rounded-lg">Unlock</button></div></form></div></div>`,
+                    weedId: () => {
+                         const { trial } = data;
+                         if (!trial) return `<div id="weed-modal" class="modal"><div class="modal-content bg-white p-8 rounded-lg shadow-xl w-full max-w-4xl mx-auto mt-10"><p class="text-red-500">Error: Trial data could not be loaded.</p></div></div>`;
+                         return `<div id="weed-modal" class="modal">
+                                    <div class="modal-content bg-white p-8 rounded-lg shadow-xl w-full max-w-4xl mx-auto mt-10">
+                                        <h3 class="text-xl font-bold mb-4 text-slate-800">Weed Identification for: ${trial.FormulationName}</h3>
+                                        <div class="flex items-center gap-4 mb-6">
+                                            <input type="file" id="weed-photos-input" multiple accept="image/*" class="hidden" data-trial-id="${trial.ID}">
+                                            <label for="weed-photos-input" class="cursor-pointer btn-primary text-white px-4 py-2 rounded-lg font-semibold">Choose Files</label>
+                                            <button type="button" data-action="open-weed-camera" data-trial-id="${trial.ID}" class="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 font-semibold">Camera</button>
+                                        </div>
+                                        <div id="weed-photo-grid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 h-96 overflow-y-auto bg-gray-50 p-4 rounded-lg">
+                                            ${safeJsonParse(trial.WeedPhotosJSON).map((p, index) => render.weedPhotoCard(p, trial.ID, index)).join('')}
+                                        </div>
+                                        <div class="mt-6 flex justify-end">
+                                            <button type="button" data-action="close-modal" class="bg-slate-200 text-slate-800 px-4 py-2 rounded-lg transition hover:bg-slate-300">Done</button>
+                                        </div>
+                                    </div>
+                                 </div>`;
+                    },
+                    trialDetail: () => {
+                        const { trial } = data;
+                        if (!trial) return '';
+                        const photos = safeJsonParse(trial.PhotoURLs);
+                        const photoTable = photos.length > 0 ? `
+                        <div class="mt-4">
+                            <h4 class="text-lg font-semibold mb-2 text-slate-700">Photo Log & Weather</h4>
+                            <div class="overflow-x-auto rounded-lg border">
+                                <table class="min-w-full divide-y divide-gray-200 text-sm">
+                                    <thead class="bg-slate-50"><tr>
+                                        <th class="px-4 py-2 text-left font-medium text-slate-500">Photo</th>
+                                        <th class="px-4 py-2 text-left font-medium text-slate-500">Label</th>
+                                        <th class="px-4 py-2 text-left font-medium text-slate-500">Date</th>
+                                        <th class="px-4 py-2 text-left font-medium text-slate-500">Weather</th>
+                                        <th class="px-4 py-2 text-left font-medium text-slate-500">Actions</th>
+                                    </tr></thead>
+                                    <tbody class="bg-white divide-y divide-gray-200">
+                                    ${photos.map((p, index) => {
+                                        const photoUrl = p.url || p.fileData; // Use final url or temporary base64 data
+                                        if (!photoUrl) return '';
+                                        const proxiedUrl = photoUrl.startsWith('data:image') ? photoUrl : `https://images.weserv.nl/?url=${encodeURIComponent(photoUrl)}&w=100`;
+                                        const fullSizeUrl = photoUrl.startsWith('data:image') ? '#' : photoUrl;
+                                        const weather = p.weather || {};
+                                        return `<tr>
+                                            <td class="p-2"><a href="${fullSizeUrl}" target="_blank"><img src="${proxiedUrl}" class="h-16 w-16 object-cover rounded-md border"></a></td>
+                                            <td class="p-2">${p.label || '-'}</td>
+                                            <td class="p-2">${p.date ? new Date(p.date).toLocaleDateString() : 'N/A'}</td>
+                                            <td class="p-2">${weather.temp ? `${weather.temp}°C, ${weather.humidity}% H, ${weather.wind} km/h` : 'N/A'}</td>
+                                            <td class="p-2"><button data-action="open-photo-edit-modal" data-trial-id="${trial.ID}" data-photo-index="${index}" class="text-teal-600 hover:text-teal-800 font-semibold text-xs">Edit</button></td>
+                                        </tr>`
+                                    }).join('')}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>` : '<p class="mt-4 text-gray-500">No photos available.</p>';
+                        
+                        const weedPhotos = safeJsonParse(trial.WeedPhotosJSON);
+                        const weedTable = weedPhotos.length > 0 ? `
+                        <div class="mt-6">
+                            <h4 class="text-lg font-semibold mb-2 text-slate-700">Weed Identification</h4>
+                             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                ${weedPhotos.map(p => {
+                                    const bestMatch = p.identifications?.[0];
+                                    return `
+                                    <div class="border rounded-lg p-3 bg-slate-50">
+                                        <img src="https://images.weserv.nl/?url=${encodeURIComponent(p.url)}&w=300" class="rounded-md w-full h-48 object-cover mb-2">
+                                        <p class="font-semibold text-sm">${bestMatch?.name || 'Unknown'} <em class="text-gray-500 font-normal">${bestMatch?.commonNames?.[0] || ''}</em></p>
+                                        <p class="text-xs text-gray-500">Confidence: ${bestMatch?.confidence ? (bestMatch.confidence * 100).toFixed(1) + '%' : 'N/A'}</p>
+                                    </div>
+                                `}).join('')}
+                            </div>
+                        </div>` : '';
+
+
+                        return `<div id="trial-detail-modal" class="modal"><div class="modal-content bg-white p-8 rounded-lg shadow-xl w-full max-w-5xl mx-auto mt-10"><h3 class="text-2xl font-bold mb-6 text-slate-800">Herbicide Trial Report: ${trial.FormulationName}</h3><div class="grid grid-cols-1 md:grid-cols-2 gap-8"><div class="space-y-2 text-gray-800"><p><strong>Investigator:</strong> ${trial.InvestigatorName || 'N/A'}</p><p><strong>Location:</strong> ${trial.Location || 'N/A'}</p><p><strong>Dosage:</strong> ${trial.Dosage || 'N/A'}</p><p><strong>Weed Species:</strong> ${trial.WeedSpecies || 'N/A'}</p><p><strong>Date:</strong> ${new Date(trial.Date).toLocaleDateString()}</p><p><strong>Result:</strong> ${trial.Result || 'N/A'}</p>${ trial.Temperature ? `<div class="mt-4 pt-4 border-t"><p class="font-semibold text-gray-500 text-sm">Weather on Trial Date</p><p><strong>Temperature:</strong> ${trial.Temperature}°C</p><p><strong>Humidity:</strong> ${trial.Humidity}%</p><p><strong>Wind:</strong> ${trial.Windspeed} km/h</p><p><strong>Rain:</strong> ${trial.Rain} mm</p></div>` : '' }<div class="mt-4 pt-4 border-t"><p><strong>Conclusion:</strong> ${trial.Conclusion || 'N/A'}</p><p><strong>Notes:</strong> ${trial.Notes || 'N/A'}</p></div></div><div>${photoTable} ${weedTable}</div></div><div class="mt-8 border-t pt-6 flex flex-wrap justify-center gap-3"><button data-action="export-pdf-with-ingredients" data-id="${trial.ID}" class="bg-gray-200 text-gray-800 px-4 py-2 rounded-lg text-sm">PDF (Ingredients)</button><button data-action="export-pdf-without-ingredients" data-id="${trial.ID}" class="bg-gray-200 text-gray-800 px-4 py-2 rounded-lg text-sm">PDF (No Ingredients)</button><button data-action="export-pdf-weeds-with-ingredients" data-id="${trial.ID}" class="bg-indigo-100 text-indigo-800 px-4 py-2 rounded-lg text-sm font-semibold">PDF (Weeds + Ingredients)</button><button data-action="export-pdf-weeds-without-ingredients" data-id="${trial.ID}" class="bg-indigo-100 text-indigo-800 px-4 py-2 rounded-lg text-sm font-semibold">PDF (Weeds)</button><button data-action="export-ppt" data-id="${trial.ID}" class="bg-gray-200 text-gray-800 px-4 py-2 rounded-lg text-sm">Export as PPT</button><button data-action="close-modal" class="btn-primary text-white px-4 py-2 rounded-lg text-sm">Go Back</button></div></div></div>`;
+                    },
+                    organise: `<div id="organise-modal" class="modal"><div class="modal-content bg-white p-8 rounded-lg shadow-xl w-full max-w-md mx-auto mt-20"><h3 class="text-lg font-bold mb-4 text-slate-800">Add to Organisation</h3><form id="organise-form"><div class="mb-4"><label class="block text-sm font-medium text-gray-700">Select Existing Organisation</label><select name="organisationId" id="existing-organisations" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm form-input"><option value="">-- Choose existing --</option>${state.organisations.map(o => `<option value="${o.ID}">${o.Name}</option>`).join('')}</select></div><div class="text-center my-2 text-gray-500">OR</div><div class="mb-4"><label class="block text-sm font-medium text-gray-700">Create New Organisation</label><input type="text" name="newOrganisationName" placeholder="e.g., Summer 2025 Variants" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm form-input"></div><div class="mt-6 flex justify-end space-x-3"><button type="button" data-action="close-modal" class="bg-slate-200 text-slate-800 px-4 py-2 rounded-lg transition hover:bg-slate-300">Cancel</button><button type="submit" class="btn-primary text-white px-4 py-2 rounded-lg">Save</button></div></form></div></div>`
+                };
+                const template = modalTemplates[modalId];
+                if (typeof template === 'function') {
+                    return template();
+                }
+                return template || '';
+            }
+        };
+
+        const render = {
+            dashboard: () => {
+                // Destroy old charts if they exist
+                Object.values(state.charts).forEach(chart => { if(chart) chart.destroy() });
+                state.charts = {};
+
+                // --- CALCULATIONS ---
+                const trials = state.trials || [];
+                const formulations = state.formulations || [];
+                
+                const totalTrials = trials.length;
+                const completedTrials = trials.filter(t => String(t.IsCompleted).toLowerCase() === 'true').length;
+                const activeTrials = totalTrials - completedTrials;
+
+                document.getElementById('total-trials').textContent = totalTrials;
+                document.getElementById('active-trials').textContent = activeTrials;
+                document.getElementById('completed-trials').textContent = completedTrials;
+                
+                // --- Weather ---
+                const weatherTrials = trials.filter(t => t.Temperature && t.Humidity && t.Windspeed);
+                let avgTemp = 0, avgHumidity = 0, avgWind = 0, avgRain = 0;
+                if(weatherTrials.length > 0) {
+                    avgTemp = weatherTrials.reduce((sum, t) => sum + parseFloat(t.Temperature), 0) / weatherTrials.length;
+                    avgHumidity = weatherTrials.reduce((sum, t) => sum + parseFloat(t.Humidity), 0) / weatherTrials.length;
+                    avgWind = weatherTrials.reduce((sum, t) => sum + parseFloat(t.Windspeed), 0) / weatherTrials.length;
+                    avgRain = weatherTrials.reduce((sum, t) => sum + parseFloat(t.Rain || 0), 0) / weatherTrials.length;
+                }
+                const weatherEl = document.getElementById('avg-weather-conditions');
+                if (weatherEl) {
+                    weatherEl.innerHTML = `
+                        <div class="flex items-center gap-3"><div class="bg-blue-100 p-2 rounded-full"><i data-lucide="thermometer" class="h-5 w-5 text-blue-600"></i></div><div><p class="font-bold text-slate-700">${avgTemp.toFixed(1)}°C</p><p class="text-xs text-slate-500">Avg. Temp</p></div></div>
+                        <div class="flex items-center gap-3"><div class="bg-sky-100 p-2 rounded-full"><i data-lucide="droplets" class="h-5 w-5 text-sky-600"></i></div><div><p class="font-bold text-slate-700">${avgHumidity.toFixed(1)}%</p><p class="text-xs text-slate-500">Avg. Humidity</p></div></div>
+                        <div class="flex items-center gap-3"><div class="bg-slate-100 p-2 rounded-full"><i data-lucide="wind" class="h-5 w-5 text-slate-600"></i></div><div><p class="font-bold text-slate-700">${avgWind.toFixed(1)} km/h</p><p class="text-xs text-slate-500">Avg. Wind</p></div></div>
+                        <div class="flex items-center gap-3"><div class="bg-indigo-100 p-2 rounded-full"><i data-lucide="cloud-rain" class="h-5 w-5 text-indigo-600"></i></div><div><p class="font-bold text-slate-700">${avgRain.toFixed(1)} mm</p><p class="text-xs text-slate-500">Avg. Rain</p></div></div>
+                    `;
+                    lucide.createIcons();
+                }
+
+
+                // --- Trials Over Time Chart ---
+                const trialsByMonth = trials.reduce((acc, trial) => {
+                    const month = new Date(trial.Date).toISOString().slice(0, 7); // YYYY-MM
+                    acc[month] = (acc[month] || 0) + 1;
+                    return acc;
+                }, {});
+                const sortedMonths = Object.keys(trialsByMonth).sort();
+                const chartLabels = sortedMonths.map(month => new Date(month + '-02').toLocaleString('default', { month: 'short', year: '2-digit' }));
+                const chartData = sortedMonths.map(month => trialsByMonth[month]);
+                
+                const trialsCtx = document.getElementById('trials-over-time-chart');
+                if (trialsCtx) {
+                    state.charts.trialsOverTime = new Chart(trialsCtx, {
+                        type: 'line',
+                        data: {
+                            labels: chartLabels,
+                            datasets: [{
+                                label: 'Trials Conducted',
+                                data: chartData,
+                                borderColor: 'rgba(15, 118, 110, 1)',
+                                backgroundColor: 'rgba(15, 118, 110, 0.1)',
+                                fill: true,
+                                tension: 0.4,
+                            }]
+                        },
+                        options: { responsive: true, maintainAspectRatio: false }
+                    });
+                }
+                
+                // --- Results Breakdown Chart ---
+                const resultsCount = trials.reduce((acc, trial) => {
+                    const result = trial.Result || 'None';
+                    acc[result] = (acc[result] || 0) + 1;
+                    return acc;
+                }, {});
+                const resultsLabels = Object.keys(resultsCount);
+                const resultsData = Object.values(resultsCount);
+                
+                const resultsCtx = document.getElementById('results-breakdown-chart');
+                if (resultsCtx) {
+                    state.charts.resultsBreakdown = new Chart(resultsCtx, {
+                        type: 'doughnut',
+                        data: {
+                            labels: resultsLabels,
+                            datasets: [{
+                                label: 'Trial Results',
+                                data: resultsData,
+                                backgroundColor: [
+                                    '#d1fae5', // Excellent
+                                    '#dbeafe', // Good
+                                    '#fef3c7', // Fair
+                                    '#fee2e2', // Poor
+                                    '#e5e7eb'  // None
+                                ],
+                                borderColor: '#fff',
+                                borderWidth: 4
+                            }]
+                        },
+                        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
+                    });
+                }
+
+                 // --- Top Formulations ---
+                const topFormulations = [...formulations]
+                    .sort((a, b) => parseFloat(b.EstimatedCost || 0) - parseFloat(a.EstimatedCost || 0))
+                    .slice(0, 5);
+
+                const topFormulationsList = document.getElementById('top-formulations-list');
+                if (topFormulationsList) {
+                    topFormulationsList.innerHTML = topFormulations.map(f => `
+                        <li class="flex justify-between items-center">
+                            <span class="text-slate-600">${f.Name}</span>
+                            <span class="font-semibold text-teal-700">${CURRENCY_SYMBOL}${parseFloat(f.EstimatedCost || 0).toFixed(2)}</span>
+                        </li>
+                    `).join('') || '<p class="text-slate-500">No formulations yet.</p>';
+                }
+
+                // --- Top Weeds ---
+                const weedCounts = trials.reduce((acc, trial) => {
+                    if (trial.WeedSpecies) {
+                        trial.WeedSpecies.split(',').forEach(weed => {
+                            const trimmedWeed = weed.trim();
+                            if (trimmedWeed) {
+                                acc[trimmedWeed] = (acc[trimmedWeed] || 0) + 1;
+                            }
+                        });
+                    }
+                    return acc;
+                }, {});
+
+                const topWeeds = Object.entries(weedCounts)
+                    .sort(([, a], [, b]) => b - a)
+                    .slice(0, 5);
+
+                const topWeedsList = document.getElementById('top-weeds-list');
+                if (topWeedsList) {
+                    topWeedsList.innerHTML = topWeeds.map(([name, count]) => `
+                         <li class="flex justify-between items-center">
+                            <span class="text-slate-600">${name}</span>
+                            <span class="font-semibold text-slate-700">${count} trials</span>
+                        </li>
+                    `).join('') || '<p class="text-slate-500">No weed data yet.</p>';
+                }
+
+            },
+            trialCard: (trial, showCheckbox = false) => {
+                const formulation = state.formulations.find(f => f.ID === trial.FormulationID);
+                const cost = formulation ? parseFloat(formulation.EstimatedCost || 0).toFixed(2) : '0.00';
+                
+                let controlDuration;
+                const isFinal = String(trial.ControlFinalized).toLowerCase() === 'true';
+
+                if (isFinal) {
+                    if (trial.FinalControlDuration != null) {
+                        controlDuration = `${trial.FinalControlDuration} Days (Final)`;
+                    } else if (trial.FinalizationDate && trial.Date) {
+                        const days = Math.floor((new Date(trial.FinalizationDate) - new Date(trial.Date)) / (1000 * 60 * 60 * 24));
+                        controlDuration = `${days < 0 ? 0 : days} Days (Final)`;
+                    } else {
+                        controlDuration = 'Finalized'; // Fallback for older data
+                    }
+                } else if (trial.Date) {
+                    const days = Math.floor((new Date() - new Date(trial.Date)) / (1000 * 60 * 60 * 24));
+                    controlDuration = `${days < 0 ? 0 : days} Days`;
+                } else {
+                    controlDuration = 'N/A';
+                }
+
+                 const photos = safeJsonParse(trial.PhotoURLs).slice(0, 4).map(p => {
+                    const photoUrl = p.url || p.fileData || p;
+                    if (typeof photoUrl !== 'string' || !photoUrl) return '';
+                    const proxiedUrl = photoUrl.startsWith('data:image') ? photoUrl : `https://images.weserv.nl/?url=${encodeURIComponent(photoUrl)}&w=100&h=100&fit=cover`;
+                    return `<img src="${proxiedUrl}" class="h-16 w-16 object-cover rounded-md border" alt="${p.label || 'Trial photo'}">`;
+                }).join('');
+
+                 const resultValue = trial.Result || '';
+                 const resultClasses = `py-1 px-2 rounded-full text-xs font-semibold result-${resultValue.toLowerCase() || 'none'}`;
+                 const resultSelect = `
+                    <select data-action="update-result" data-id="${trial.ID}" class="text-xs font-semibold bg-transparent border-none focus:ring-0 focus:outline-none result-${resultValue.toLowerCase() || 'none'}" onchange="this.className = 'text-xs font-semibold bg-transparent border-none focus:ring-0 focus:outline-none result-' + (this.value.toLowerCase() || 'none')">
+                        <option value="" ${resultValue === '' ? 'selected' : ''}>Set Result</option>
+                        <option value="Excellent" ${resultValue === 'Excellent' ? 'selected' : ''}>Excellent</option>
+                        <option value="Good" ${resultValue === 'Good' ? 'selected' : ''}>Good</option>
+                        <option value="Fair" ${resultValue === 'Fair' ? 'selected' : ''}>Fair</option>
+                        <option value="Poor" ${resultValue === 'Poor' ? 'selected' : ''}>Poor</option>
+                    </select>
+                `;
+
+                return `
+                <div class="bg-white rounded-xl shadow-lg flex flex-col h-full transition-all duration-300 hover:shadow-xl hover:-translate-y-1 border border-transparent hover:border-teal-500/50">
+                    <div class="p-5 flex-grow">
+                        <div class="flex items-start justify-between">
+                            <div class="flex items-start gap-3">
+                                ${showCheckbox ? `<input type="checkbox" data-action="select-trial" data-id="${trial.ID}" class="mt-1 h-4 w-4 rounded border-gray-300 text-teal-600 focus:ring-teal-500">` : ''}
+                                <div class="cursor-pointer" data-action="view-trial" data-id="${trial.ID}">
+                                    <h3 class="font-bold text-lg text-slate-800">${trial.FormulationName || 'Unknown Formulation'}</h3>
+                                    <p class="text-xs text-slate-500">${new Date(trial.Date).toLocaleDateString()}</p>
+                                    <p class="text-sm text-slate-600 truncate mt-1">Investigator: ${trial.InvestigatorName || 'N/A'}</p>
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <div class="${resultClasses} p-0">
+                                    ${resultSelect}
+                                </div>
+                                <div class="group relative">
+                                    <button class="p-1 rounded-full hover:bg-slate-100"><i data-lucide="more-vertical" class="h-4 w-4"></i></button>
+                                    <div class="absolute top-full right-0 mt-1 bg-white rounded-md shadow-lg p-1 w-28 hidden group-hover:block z-10 text-sm">
+                                        <button data-action="edit" data-type="trial" data-id="${trial.ID}" class="w-full text-left px-3 py-1 rounded hover:bg-slate-100">Edit</button>
+                                        <button data-action="delete" data-type="trial" data-id="${trial.ID}" class="w-full text-left px-3 py-1 rounded text-red-600 hover:bg-red-50">Delete</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2 mt-2">
+                            <input type="checkbox" data-action="toggle-completed" data-id="${trial.ID}" id="completed-${trial.ID}" class="h-4 w-4 rounded border-gray-300 text-teal-600 focus:ring-teal-500" ${String(trial.IsCompleted).toLowerCase() === 'true' ? 'checked' : ''}>
+                            <label for="completed-${trial.ID}" class="text-xs font-medium text-gray-700">Mark as Completed</label>
+                        </div>
+                         <div class="mt-4 grid grid-cols-2 gap-x-4 text-sm text-gray-600 cursor-pointer" data-action="view-trial" data-id="${trial.ID}">
+                            <p><strong>Dosage:</strong> ${trial.Dosage || 'N/A'}</p>
+                            <p class="text-teal-600 font-semibold"><strong>Control:</strong> ${controlDuration}</p>
+                            <p class="font-semibold text-slate-700"><strong>Cost:</strong> ${CURRENCY_SYMBOL}${cost}</p>
+                        </div>
+                        ${photos ? `<div class="mt-4 cursor-pointer" data-action="view-trial" data-id="${trial.ID}"><div class="flex flex-wrap gap-2">${photos}</div></div>` : ''}
+                    </div>
+                    <div class="mt-auto p-3 border-t bg-slate-50/50 rounded-b-xl flex items-center justify-between gap-2">
+                        <div class="flex items-center gap-2">
+                            <button class="text-xs bg-white border rounded-md px-2 py-1 hover:bg-slate-100 transition" data-action="open-weed-modal" data-id="${trial.ID}">Identify Weeds</button>
+                            <input type="file" id="quick-photo-input-${trial.ID}" class="hidden" data-action="quick-add-photo" data-id="${trial.ID}" accept="image/*" multiple>
+                            <label for="quick-photo-input-${trial.ID}" class="text-xs bg-white border rounded-md px-2 py-1 hover:bg-slate-100 transition cursor-pointer">Add Photo</label>
+                            <button class="text-xs bg-white border rounded-md px-2 py-1 hover:bg-slate-100 transition" data-action="quick-open-camera" data-id="${trial.ID}">Camera</button>
+                        </div>
+                        <div>
+                             ${!isFinal 
+                                ? `<button class="text-xs bg-green-100 text-green-800 border border-green-200 rounded-md px-2 py-1 hover:bg-green-200 transition font-semibold" data-action="finalize-trial" data-id="${trial.ID}">Stop Counting</button>`
+                                : `<button class="text-xs bg-amber-100 text-amber-800 border border-amber-200 rounded-md px-2 py-1 hover:bg-amber-200 transition font-semibold" data-action="restart-trial" data-id="${trial.ID}">Restart Count</button>`
+                             }
+                        </div>
+                    </div>
+                </div>`;
+            },
+            weedPhotoCard: (p, trialId, index) => {
+                const proxiedUrl = p.url ? (p.url.startsWith('data:image') ? p.url : `https://images.weserv.nl/?url=${encodeURIComponent(p.url)}&w=300`) : '';
+                let identificationHTML = '<p class="text-sm text-gray-500 animate-pulse">Detecting...</p>';
+                if (p.identifications) {
+                    if (p.identifications.length > 0) {
+                        const bestMatch = p.identifications[0];
+                        identificationHTML = `
+                            <p class="font-semibold text-sm text-gray-800">${bestMatch.name} <em class="text-gray-500 font-normal">${bestMatch?.commonNames?.[0] || ''}</em></p>
+                            <p class="text-xs text-gray-500">Confidence: ${(bestMatch.confidence * 100).toFixed(1)}%</p>
+                        `;
+                    } else {
+                        identificationHTML = '<p class="text-sm text-red-500">No weeds identified.</p>';
+                    }
+                }
+
+                return `<div class="border rounded-lg p-2 bg-white flex flex-col text-center relative">
+                            <img src="${proxiedUrl}" class="rounded-md w-full h-40 object-cover mb-2">
+                            <div class="mt-auto">${identificationHTML}</div>
+                            <button data-action="delete-weed-photo" data-trial-id="${trialId}" data-index="${index}" class="absolute top-1 right-1 bg-red-500 text-white rounded-full h-5 w-5 flex items-center justify-center text-xs font-bold">&times;</button>
+                        </div>`;
+            },
+            ingredients: (data = state.ingredients) => { const el = document.getElementById('ingredients-list'); if(el) el.innerHTML = `<ul class="divide-y divide-gray-200">${(data || []).map(ing => `<li class="py-3 flex justify-between items-center"><div><p class="font-medium">${ing.Name}</p><p class="text-sm text-gray-500">${CURRENCY_SYMBOL}${parseFloat(ing.Cost).toFixed(2)} / ${ing.Unit}</p></div><div class="flex gap-4"><button data-action="edit" data-type="ingredient" data-id="${ing.ID}" class="text-teal-600 hover:text-teal-800 font-bold">Edit</button><button data-action="delete" data-type="ingredient" data-id="${ing.ID}" class="text-red-500 hover:text-red-700 font-bold">&times;</button></div></li>`).join('') || '<p class="text-gray-500">No ingredients.</p>'}</ul>`; },
+            formulations: (data = state.formulations) => { const el = document.getElementById('formulations-list'); if(el) el.innerHTML = (data || []).map(form => `<div class="bg-white p-6 rounded-xl shadow-lg relative transition-all duration-300 hover:shadow-xl hover:-translate-y-1 border border-transparent hover:border-teal-500/50"><div class="absolute top-4 right-4 flex gap-2"><button data-action="duplicate" data-type="formulation" data-id="${form.ID}" class="bg-slate-200 text-slate-700 px-3 py-1 rounded-md text-sm hover:bg-slate-300">Duplicate</button><button data-action="edit" data-type="formulation" data-id="${form.ID}" class="bg-teal-100 text-teal-700 px-3 py-1 rounded-md text-sm hover:bg-teal-200">Edit</button><button data-action="delete" data-type="formulation" data-id="${form.ID}" class="text-red-500 hover:text-red-700 font-bold text-xl">&times;</button></div><h3 class="font-bold text-lg text-slate-800">${form.Name}</h3><div class="mt-2 text-sm text-gray-600"><ul class="list-disc list-inside">${safeJsonParse(form.IngredientsJSON).map(ing => `<li>${ing.name} (${ing.quantity} ${ing.unit})</li>`).join('')}</ul>${form.Notes ? `<p class="mt-2"><strong>Notes:</strong> ${form.Notes}</p>` : ''}</div><p class="mt-4 font-semibold text-teal-700">Cost: ${CURRENCY_SYMBOL}${parseFloat(form.EstimatedCost || 0).toFixed(2)}</p></div>`).join('') || '<p class="text-gray-500 col-span-full">No formulations found.</p>'; },
+            trials: (data = state.trials) => {
+                const el = document.getElementById('trials-list');
+                if (!el) return;
+                el.innerHTML = (data || []).map(trial => render.trialCard(trial, true)).join('') || '<p class="text-gray-500">No trials found.</p>';
+            },
+             organisations: (data = state.organisations) => {
+                const el = document.getElementById('organisations-list');
+                if (!el) return;
+                el.innerHTML = (data || []).map(org => {
+                    const trialDetails = safeJsonParse(org.TrialIDs).map(trialId => state.trials.find(t => t.ID === trialId)).filter(Boolean);
+                    return `<div class="bg-white p-6 rounded-lg shadow-md">
+                                <div class="flex justify-between items-start mb-4">
+                                    <h3 class="font-bold text-xl text-gray-800">${org.Name}</h3>
+                                    <button data-action="delete" data-type="organisation" data-id="${org.ID}" class="text-red-500 hover:text-red-700 font-semibold text-sm">Delete</button>
+                                </div>
+                                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                    ${trialDetails.length > 0 ? trialDetails.map(t => render.trialCard(t, false)).join('') : '<p class="text-gray-500 col-span-full">No trials in this organisation.</p>'}
+                                </div>
+                            </div>`;
+                }).join('') || '<p class="text-gray-500">No organisations created yet. Go to the Trials page to group some together.</p>';
+            },
+        };
+
+        async function apiCall(action, payload = {}, showOverlay = true) {
+            if (showOverlay) loadingOverlay.classList.remove('hidden');
+            try {
+                const fullPayload = { ...payload, spreadsheetId: state.settings.sheetId, folderId: state.settings.folderId };
+                
+                const res = await fetch(state.settings.scriptUrl, { method: 'POST', body: JSON.stringify({ action, payload: fullPayload }), redirect: 'follow' });
+                
+                if (!res.ok) {
+                    const errorText = await res.text();
+                    console.error(`Network error: ${res.status} ${res.statusText}`, errorText);
+                    throw new Error(`Network error: ${res.statusText}. Check console for details.`);
+                }
+                
+                const result = await res.json();
+
+                if (result.status === 'error') {
+                    console.error('Server-side error:', result.message, '\nStack:', result.stack);
+                    throw new Error(result.message);
+                }
+                return result.data;
+            } catch (error) {
+                console.error('API Call Error:', action, error);
+                showToast(`Error: ${error.message}`, 'error');
+                return null;
+            } finally {
+                if (showOverlay) loadingOverlay.classList.add('hidden');
+            }
+        }
+        
+        function showToast(message, type = 'success') { toast.textContent = message; toast.className = `toast show ${type}`; setTimeout(() => { toast.className = toast.className.replace('show', ''); }, 5000); }
+        
+        function switchPage(pageId) {
+            const pageTitles = {
+                dashboard: 'Dashboard',
+                formulations: 'My Formulations',
+                trials: 'Trials',
+                organisations: 'Trial Organisations',
+                ingredients: 'Ingredient Costs',
+                aiAssistant: 'AI Assistant',
+                dataMgmt: 'Data Management',
+                settings: 'Settings'
+            };
+
+            if ((pageId === 'settings' || pageId === 'dataMgmt') && state.isSettingsLocked) {
+                openModal('password', false, { targetPage: pageId });
+                return; // Stop navigation until unlocked
+            }
+            if (pageId !== 'settings' && pageId !== 'dataMgmt') {
+                state.isSettingsLocked = true; // Re-lock when leaving protected pages
+            }
+
+            state.currentPage = pageId;
+            document.querySelectorAll('#sidebar-nav a').forEach(link => {
+                if (link.dataset.page === pageId) {
+                    link.classList.add('bg-teal-50', 'text-teal-700', 'font-semibold');
+                    link.classList.remove('text-slate-600');
+                } else {
+                    link.classList.remove('bg-teal-50', 'text-teal-700', 'font-semibold');
+                    link.classList.add('text-slate-600');
+                }
+            });
+
+            document.getElementById('page-title').textContent = pageTitles[pageId] || 'Dashboard';
+            mainContent.style.animation = 'none';
+            mainContent.offsetHeight; /* trigger reflow */
+            mainContent.style.animation = 'contentFadeIn 0.5s';
+            mainContent.innerHTML = templates.page(pageId);
+            
+            const renderFn = render[pageId];
+            if (renderFn) {
+                if (pageId === 'dashboard') {
+                    setTimeout(() => render.dashboard(), 50); // Delay for canvas
+                } else {
+                     renderFn(state[pageId]);
+                }
+            }
+            
+            if (pageId === 'trials') {
+                const filterSelect = mainContent.querySelector('[data-type="trial-formulation"]');
+                if (filterSelect) {
+                    const formulationNames = [...new Set((state.trials || []).map(t => t.FormulationName).filter(Boolean))].sort();
+                    filterSelect.innerHTML = `<option value="">Filter by Formulation</option>${formulationNames.map(name => `<option value="${name}">${name}</option>`).join('')}`;
+                }
+                state.selectedTrials = [];
+                updateOrganiseBar();
+            }
+             if (pageId === 'settings') {
+                document.getElementById('gemini-api-key').value = state.geminiApiKey || '';
+                document.getElementById('script-url').value = state.settings.scriptUrl || '';
+                document.getElementById('sheet-url').value = state.settings.sheetId ? `https://docs.google.com/spreadsheets/d/${state.settings.sheetId}/` : '';
+                document.getElementById('folder-url').value = state.settings.folderId ? `https://drive.google.com/drive/folders/${state.settings.folderId}` : '';
+            }
+             if (pageId === 'aiAssistant') {
+                setTimeout(() => {
+                    const chatBox = document.getElementById('ai-chat-box');
+                    if (!chatBox) return;
+                    chatBox.innerHTML = ''; 
+                    if (state.aiChatHistory.length === 0) { appendMessageToChat('Hello! Ask me about your trial data.', 'ai', false); } 
+                    else { state.aiChatHistory.forEach(msg => appendMessageToChat(msg.text, msg.sender, false, msg.image, msg.mimeType)); }
+                }, 0);
+            }
+            lucide.createIcons();
+        }
+
+        function setupTrialModalLogic() {
+            const form = document.getElementById('trial-form');
+            if (!form) return;
+        
+            const controlCheckbox = form.querySelector('#control-finalized');
+            const finalizationDetails = form.querySelector('#finalization-details');
+            const finalDateInput = form.querySelector('#finalization-date');
+            const finalDurationInput = form.querySelector('#final-control-duration');
+            const trialDateInput = form.querySelector('#trial-date');
+        
+            const updateFinalizationFields = () => {
+                if (controlCheckbox.checked) {
+                    finalizationDetails.classList.remove('hidden');
+                    if (!finalDateInput.value) {
+                        finalDateInput.value = new Date().toISOString().split('T')[0];
+                    }
+                    if (trialDateInput.value && finalDateInput.value) {
+                         const days = Math.floor((new Date(finalDateInput.value) - new Date(trialDateInput.value)) / (1000 * 60 * 60 * 24));
+                         // Only auto-fill if duration is empty, preserving manual edits
+                         if (!finalDurationInput.value) {
+                            finalDurationInput.value = days < 0 ? 0 : days;
+                         }
+                    }
+                } else {
+                    finalizationDetails.classList.add('hidden');
+                }
+            };
+        
+            controlCheckbox.addEventListener('change', updateFinalizationFields);
+
+            const recalculateDuration = () => {
+                 if (trialDateInput.value && finalDateInput.value) {
+                    const days = Math.floor((new Date(finalDateInput.value) - new Date(trialDateInput.value)) / (1000 * 60 * 60 * 24));
+                    finalDurationInput.value = days < 0 ? 0 : days;
+                }
+            };
+
+            trialDateInput.addEventListener('change', recalculateDuration);
+            finalDateInput.addEventListener('change', recalculateDuration);
+
+            // Initial state check
+            updateFinalizationFields();
+        }
+
+        function openModal(id, isEdit = false, data = {}) {
+            modalContainer.innerHTML = templates.modal(id, isEdit, data);
+            if (modalContainer.firstChild) modalContainer.firstChild.style.display = 'block';
+            
+            if (id === 'trial') {
+                setupTrialModalLogic();
+            }
+
+            lucide.createIcons();
+        }
+        function closeModal() { modalContainer.innerHTML = ''; }
+
+        function showConfirmation(title, message, onConfirm) {
+            openModal('confirm');
+            const okBtn = document.querySelector('[data-action="confirm-ok"]');
+            const cancelBtn = document.querySelector('[data-action="confirm-cancel"]');
+            document.getElementById('confirm-title').textContent = title;
+            document.getElementById('confirm-message').textContent = message;
+            
+            const cleanup = () => { okBtn.removeEventListener('click', confirmHandler); cancelBtn.removeEventListener('click', cleanup); closeModal(); };
+            const confirmHandler = () => { onConfirm(); cleanup(); };
+            
+            okBtn.addEventListener('click', confirmHandler, { once: true });
+            cancelBtn.addEventListener('click', cleanup, { once: true });
+        }
+
+        function openTrialDetail(trialId) { const trial = state.trials.find(t => t.ID === trialId); if (trial) openModal('trialDetail', false, { trial }); }
+
+        function handleOpenModal(type, id = null) {
+             if (type === 'weedId') {
+                const trial = state.trials.find(t => t.ID === id);
+                if (trial) openModal('weedId', false, { trial });
+                return;
+            }
+            state.croppedPhotosData = []; state.currentTrialIdForCamera = null; openModal(type);
+            setTimeout(() => {
+                if (type === 'trial') {
+                    const form = document.getElementById('trial-form');
+                    form.querySelector('#trial-formulation').innerHTML = `<option value="">Select formulation</option>${state.formulations.map(f => `<option value="${f.ID}">${f.Name}</option>`).join('')}`;
+                    const today = new Date().toISOString().split('T')[0];
+                    form.querySelector('#trial-date').value = today;
+                    form.querySelector('#photo-date').value = today;
+                    const investigatorList = document.getElementById('investigator-list');
+                    const uniqueInvestigators = [...new Set(state.trials.map(t => t.InvestigatorName).filter(Boolean))];
+                    investigatorList.innerHTML = uniqueInvestigators.map(name => `<option value="${name}"></option>`).join('');
+                } else if (type === 'formulation') { addFormulationIngredientRow(); }
+            }, 50);
+        }
+
+        function handleEdit(type, id) {
+             state.currentTrialIdForCamera = null;
+             const data = state[type + 's'].find(item => item.ID === id);
+             if (data) { openModal(type, true); setTimeout(() => populateForm(document.getElementById(`${type}-form`), data), 50); }
+        }
+
+        function handleDuplicateItem(type, id) {
+            const collection = type + 's';
+            const originalItem = state[collection].find(item => item.ID === id);
+            if (!originalItem) return;
+
+            const clone = { ...originalItem, Name: `${originalItem.Name} (Copy)` };
+            delete clone.ID; // Important: remove ID so it's treated as a new item
+
+            openModal(type, false); // Open as a new item, not an edit
+            setTimeout(() => {
+                populateForm(document.getElementById(`${type}-form`), clone)
+            }, 50);
+        }
+
+        async function handleDelete(type, id) {
+             showConfirmation(`Delete this ${type}?`, `This will permanently remove the ${type}.`, () => {
+                if (type === 'formulation' && state.trials.some(trial => trial.FormulationID === id)) return showToast('Cannot delete: formulation is in use.', 'error');
+                
+                const collection = type + 's';
+                const originalState = JSON.parse(JSON.stringify(state[collection]));
+                state[collection] = state[collection].filter(item => item.ID !== id);
+                
+                apiCall(`delete${type.charAt(0).toUpperCase() + type.slice(1)}`, { id }, false).then(result => {
+                    if (!result || !result.success) {
+                        showToast(`Sync failed for delete. Reverting.`, 'error');
+                        state[collection] = originalState;
+                    } else {
+                         showToast(`${type.charAt(0).toUpperCase() + type.slice(1)} deleted.`, 'success');
+                    }
+                    // Always refresh the current page's view
+                    switchPage(state.currentPage);
+                });
+                // Optimistically update UI immediately
+                switchPage(state.currentPage);
+            });
+        }
+        
+        function calculateFormulationCost(ingredients) {
+            if (!ingredients || !state.ingredients) return 0;
+            return ingredients.reduce((acc, currentIng) => {
+                const details = state.ingredients.find(i => i.ID === currentIng.id);
+                if (!details) return acc;
+        
+                const baseCost = parseFloat(details.Cost);
+                const baseUnit = details.Unit.toLowerCase();
+                let usedQuantity = parseFloat(currentIng.quantity) || 0;
+                const usedUnit = currentIng.unit.toLowerCase();
+        
+                if (isNaN(baseCost) || isNaN(usedQuantity)) return acc;
+        
+                let quantityInBaseUnit = usedQuantity;
+        
+                if (baseUnit === 'l' && usedUnit === 'ml') {
+                    quantityInBaseUnit = usedQuantity / 1000;
+                } else if (baseUnit === 'ml' && usedUnit === 'l') {
+                    quantityInBaseUnit = usedQuantity * 1000;
+                } else if (baseUnit === 'kg' && usedUnit === 'gm') {
+                    quantityInBaseUnit = usedQuantity / 1000;
+                } else if (baseUnit === 'gm' && usedUnit === 'kg') {
+                    quantityInBaseUnit = usedQuantity * 1000;
+                } else if (baseUnit !== usedUnit) {
+                    console.warn(`Incompatible units for cost calculation: ${baseUnit} and ${usedUnit}. Skipping ingredient.`);
+                    return acc;
+                }
+                
+                return acc + (baseCost * quantityInBaseUnit);
+            }, 0);
+        }
+        
+        async function handleFormSubmit(form) {
+            if (!form) return;
+            const formId = form.getAttribute('id');
+            const type = formId.replace('-form', '');
+
+            if (formId === 'password-form') {
+                const password = form.querySelector('[name="password"]').value;
+                if (password === 'MIKLENS2016') {
+                    state.isSettingsLocked = false;
+                    closeModal();
+                    const targetPage = form.dataset.targetPage || 'settings';
+                    switchPage(targetPage);
+                    showToast('Unlocked.', 'success');
+                } else {
+                    showToast('Incorrect Password.', 'error');
+                    form.reset();
+                }
+                return;
+            }
+
+            if (['settings', 'data-source', 'ai', 'organise', 'photo-edit'].some(t => formId.startsWith(t))) {
+                if (formId === 'settings-form') {
+                    state.geminiApiKey = document.getElementById('gemini-api-key').value;
+                    localStorage.setItem('geminiApiKey', state.geminiApiKey);
+                    showToast('API Key saved.');
+                }
+                if (formId === 'data-source-form') { handleDataSourceSave(form); }
+                if (formId === 'ai-form') { handleAiQuery(document.getElementById('ai-input').value); }
+                if (formId === 'organise-form') { handleOrganiseSubmit(form); }
+                if (formId === 'photo-edit-form') { handlePhotoEditSubmit(form); }
+                return;
+            }
+
+            const idInput = form.querySelector('input[name="id"]');
+            const id = idInput ? idInput.value : null;
+            const isUpdate = !!id;
+            
+            const action = isUpdate ? `update${type.charAt(0).toUpperCase() + type.slice(1)}` : `add${type.charAt(0).toUpperCase() + type.slice(1)}`;
+            
+            const formData = Object.fromEntries(new FormData(form));
+            const originalState = JSON.parse(JSON.stringify(state[type + 's']));
+
+            try {
+                const tempId = id || `temp_${Date.now()}`;
+                let recordForApi;
+
+                if (type === 'formulation') {
+                    const ingredients = [...document.querySelectorAll('.formulation-ingredient-row')].map(r => ({ id: r.querySelector('.ingredient-selector').value, name: r.querySelector('.ingredient-selector').selectedOptions[0].text, quantity: r.querySelector('.ingredient-quantity').value, unit: r.querySelector('.ingredient-unit-selector').value })).filter(r => r.id);
+                    if (ingredients.length === 0) throw new Error('A formulation must have at least one ingredient.');
+                    recordForApi = { ID: tempId, Name: formData.name, Notes: formData.notes, IngredientsJSON: JSON.stringify(ingredients), EstimatedCost: calculateFormulationCost(ingredients) };
+                } else if (type === 'trial') {
+                    const formulation = state.formulations.find(f => f.ID === formData.formulationId);
+                    if (!formulation) throw new Error('Please select a valid formulation.');
+
+                    showToast('Uploading photos...', 'success');
+                    let photoURLsForPayload = [];
+                    if (isUpdate) {
+                        const newPhotos = state.croppedPhotosData.filter(p => !p.isExisting);
+                        const existingPhotos = state.croppedPhotosData.filter(p => p.isExisting);
+                        const uploadedNewPhotos = await uploadPhotos(newPhotos);
+                        photoURLsForPayload = [...existingPhotos, ...uploadedNewPhotos];
+                    } else {
+                        photoURLsForPayload = await uploadPhotos(state.croppedPhotosData);
+                    }
+                    
+                    const controlFinalized = form.querySelector('#control-finalized').checked;
+                    const isCompleted = form.querySelector('#is-completed').checked;
+                    let finalizationDate = formData.finalizationDate || null;
+                    let finalControlDuration = formData.finalControlDuration !== '' ? parseInt(formData.finalControlDuration, 10) : null;
+                    
+                    if (controlFinalized && (finalControlDuration == null || !finalizationDate)) {
+                        finalizationDate = finalizationDate || new Date().toISOString();
+                        const trialDate = formData.date;
+                        if (finalControlDuration == null && trialDate) {
+                            const days = Math.floor((new Date(finalizationDate) - new Date(trialDate)) / (1000 * 60 * 60 * 24));
+                            finalControlDuration = days < 0 ? 0 : days;
+                        }
+                    }
+
+                    recordForApi = {
+                        ID: tempId, InvestigatorName: formData.investigatorName, Location: formData.location, FormulationID: formData.formulationId, FormulationName: formulation.Name, Dosage: formData.dosage,
+                        WeedSpecies: formData.weedSpecies || '', Date: formData.date, Result: formData.result, Conclusion: formData.conclusion, Notes: formData.notes,
+                        Temperature: formData.temperature, Humidity: formData.humidity, Windspeed: formData.windspeed, Rain: formData.rain,
+                        PhotoURLs: JSON.stringify(photoURLsForPayload),
+                        ControlFinalized: controlFinalized,
+                        FinalizationDate: controlFinalized ? finalizationDate : null,
+                        FinalControlDuration: controlFinalized ? finalControlDuration : null,
+                        IsCompleted: isCompleted
+                    };
+
+                } else if (type === 'ingredient') {
+                    recordForApi = { ID: tempId, Name: formData.name, Cost: formData.cost, Unit: formData.unit };
+                } else {
+                    throw new Error(`Unknown form type: ${type}`);
+                }
+
+                // --- Optimistic UI Update ---
+                const optimisticRecord = { ...recordForApi };
+                if (type === 'trial') {
+                    optimisticRecord.PhotoURLs = JSON.stringify(state.croppedPhotosData.map(p => ({ ...p, url: p.isExisting ? p.fileData : p.fileData })));
+                }
+                
+                if (isUpdate) {
+                    const index = state[type + 's'].findIndex(item => item.ID === id);
+                    if (index > -1) state[type + 's'][index] = { ...state[type + 's'][index], ...optimisticRecord };
+                } else {
+                    state[type + 's'].push(optimisticRecord);
+                }
+
+                closeModal();
+                showToast(`${type.charAt(0).toUpperCase() + type.slice(1)} saved! Syncing...`);
+                switchPage(state.currentPage); 
+                
+                // --- API Call ---
+                const savedRecordResponse = await apiCall(action, recordForApi, false);
+                
+                // --- UNIFIED RESPONSE HANDLING ---
+                let savedRecord;
+                if (savedRecordResponse && savedRecordResponse.record && savedRecordResponse.record.ID) {
+                    // Handle update response { record: {...} }
+                    savedRecord = savedRecordResponse.record;
+                } else if (savedRecordResponse && savedRecordResponse.ID) {
+                    // Handle add response {...}
+                    savedRecord = savedRecordResponse;
+                } else {
+                    throw new Error('Server sync failed. Response was invalid.');
+                }
+               
+                // --- Final State Update ---
+                const finalIndex = state[type + 's'].findIndex(item => item.ID === tempId);
+                if (finalIndex > -1) {
+                    state[type + 's'][finalIndex] = savedRecord;
+                } else if (!isUpdate) {
+                     state[type + 's'][state[type+'s'].length - 1] = savedRecord;
+                }
+                
+                switchPage(state.currentPage);
+
+            } catch (error) {
+                console.error(`Save failed for ${type}:`, error);
+                showToast(`Save failed: ${error.message}. Reverting.`, 'error');
+                state[type + 's'] = originalState; // Rollback on error
+                switchPage(state.currentPage);
+            }
+        }
+
+
+        async function handleOrganiseSubmit(form) {
+            const formData = new FormData(form);
+            const organisationId = formData.get('organisationId');
+            const newOrganisationName = formData.get('newOrganisationName').trim();
+            const trialIds = state.selectedTrials;
+
+            if (!organisationId && !newOrganisationName) { return showToast('Please select an existing organisation or create a new one.', 'error'); }
+            if (trialIds.length === 0) { return showToast('No trials selected.', 'error'); }
+
+            loadingOverlay.classList.remove('hidden');
+
+            try {
+                if (newOrganisationName) {
+                    const newOrg = await apiCall('addOrganisation', { name: newOrganisationName, trialIds }, false);
+                    if (newOrg) state.organisations.push(newOrg);
+                } else {
+                    const updatedOrg = await apiCall('updateOrganisation', { id: organisationId, trialIds }, false);
+                    if (updatedOrg) {
+                        const index = state.organisations.findIndex(o => o.ID === organisationId);
+                        const existingTrialIds = safeJsonParse(state.organisations[index].TrialIDs);
+                        const newTrialIds = [...new Set([...existingTrialIds, ...trialIds])];
+                        state.organisations[index].TrialIDs = JSON.stringify(newTrialIds);
+                    }
+                }
+                closeModal();
+                switchPage('trials');
+            } catch (error) {
+                 showToast(`Error updating organisation: ${error.message}`, 'error');
+            } finally {
+                loadingOverlay.classList.add('hidden');
+            }
+        }
+
+        function populateForm(form, data) {
+             if (!form) return;
+             const formId = form.getAttribute('id');
+             const idInput = form.querySelector('input[name="id"]');
+             if (idInput && data.ID) { // Only set ID if it exists (for editing)
+                idInput.value = data.ID;
+             }
+             if (formId === 'trial-form') {
+                 form.querySelector('[name="investigatorName"]').value = data.InvestigatorName;
+                 const formulationSelect = form.querySelector('[name="formulationId"]');
+                 formulationSelect.innerHTML = state.formulations.map(f => `<option value="${f.ID}">${f.Name}</option>`).join('');
+                 formulationSelect.value = data.FormulationID;
+                 form.querySelector('[name="location"]').value = data.Location || '';
+                 form.querySelector('[name="dosage"]').value = data.Dosage;
+                 form.querySelector('[name="weedSpecies"]').value = data.WeedSpecies;
+                 const trialDate = new Date(data.Date).toISOString().split('T')[0];
+                 form.querySelector('[name="date"]').value = trialDate;
+                 form.querySelector('#photo-date').value = trialDate;
+                 form.querySelector('[name="result"]').value = data.Result || '';
+                 form.querySelector('[name="conclusion"]').value = data.Conclusion;
+                 form.querySelector('[name="notes"]').value = data.Notes;
+                 form.querySelector('[name="temperature"]').value = data.Temperature || '';
+                 form.querySelector('[name="humidity"]').value = data.Humidity || '';
+                 form.querySelector('[name="windspeed"]').value = data.Windspeed || '';
+                 form.querySelector('[name="rain"]').value = data.Rain || '';
+                 
+                 form.querySelector('#is-completed').checked = String(data.IsCompleted).toLowerCase() === 'true';
+
+                 const controlCheckbox = form.querySelector('#control-finalized');
+                 const finalizationDetails = form.querySelector('#finalization-details');
+                 const finalDateInput = form.querySelector('#finalization-date');
+                 const finalDurationInput = form.querySelector('#final-control-duration');
+                 
+                 const isFinalized = String(data.ControlFinalized).toLowerCase() === 'true';
+                 controlCheckbox.checked = isFinalized;
+
+                 if(isFinalized) {
+                    finalizationDetails.classList.remove('hidden');
+                    finalDateInput.value = data.FinalizationDate ? new Date(data.FinalizationDate).toISOString().split('T')[0] : '';
+                    finalDurationInput.value = data.FinalControlDuration != null ? data.FinalControlDuration : '';
+                 } else {
+                    finalizationDetails.classList.add('hidden');
+                 }
+
+                 state.croppedPhotosData = safeJsonParse(data.PhotoURLs).map((p, i) => ({ ...p, fileData: p.url, isExisting: true }));
+                 updatePhotoPreview();
+             } else if (formId === 'formulation-form') {
+                  form.querySelector('[name="name"]').value = data.Name;
+                  form.querySelector('[name="notes"]').value = data.Notes || '';
+                  const ingredients = safeJsonParse(data.IngredientsJSON);
+                  document.getElementById('formulation-ingredients-container').innerHTML = '';
+                  ingredients.forEach(ing => addFormulationIngredientRow(ing));
+                  updateFormulationCost();
+             } else if (formId === 'ingredient-form') {
+                 form.querySelector('[name="name"]').value = data.Name;
+                 form.querySelector('[name="cost"]').value = data.Cost;
+                 form.querySelector('[name="unit"]').value = data.Unit;
+             }
+        }
+
+        function applyFilters(sortConfig = {}) {
+            let filteredTrials = [...(state.trials || [])];
+            const searchTerm = (document.querySelector('[data-type="trial-search"]') || {}).value || '';
+            if (searchTerm) { filteredTrials = filteredTrials.filter(t => (t.InvestigatorName && t.InvestigatorName.toLowerCase().includes(searchTerm.toLowerCase())) || (t.WeedSpecies && t.WeedSpecies.toLowerCase().includes(searchTerm.toLowerCase()))); }
+            const formulationFilter = (document.querySelector('[data-type="trial-formulation"]') || {}).value || '';
+            if (formulationFilter) { filteredTrials = filteredTrials.filter(t => t.FormulationName === formulationFilter); }
+            const startDate = (document.querySelector('[data-type="trial-start-date"]') || {}).value || '';
+            if (startDate) { filteredTrials = filteredTrials.filter(t => new Date(t.Date) >= new Date(startDate)); }
+            const endDate = (document.querySelector('[data-type="trial-end-date"]') || {}).value || '';
+            if (endDate) { filteredTrials = filteredTrials.filter(t => new Date(t.Date) <= new Date(endDate)); }
+            if (sortConfig.sortBy) {
+                const resultOrder = { 'Excellent': 4, 'Good': 3, 'Fair': 2, 'Poor': 1 };
+                if (sortConfig.sortBy === 'result') { filteredTrials.sort((a, b) => (resultOrder[b.Result] || 0) - (resultOrder[a.Result] || 0)); } 
+                else if (sortConfig.sortBy === 'date') { filteredTrials.sort((a, b) => new Date(b.Date) - new Date(a.Date)); }
+            }
+            render.trials(filteredTrials);
+        }
+        
+        function handleBulkIngredients() {
+            const text = document.getElementById('bulk-ingredients-input').value; const container = document.getElementById('formulation-ingredients-container');
+            if (!text || !container) return; const emptyRow = container.querySelector('.formulation-ingredient-row');
+            if (emptyRow && !emptyRow.querySelector('.ingredient-selector').value) { emptyRow.remove(); }
+            const entries = text.split(',').map(s => s.trim()).filter(Boolean); let notFound = [];
+            entries.forEach(entry => {
+                const match = entry.match(/^(.*?)\s*([\d\.]+)\s*(\w+)$/); if (!match) return; const [, name, quantity, unit] = match;
+                const foundIngredient = state.ingredients.find(ing => ing.Name && ing.Name.toLowerCase() === name.trim().toLowerCase());
+                if (foundIngredient) { addFormulationIngredientRow({ id: foundIngredient.ID, quantity: quantity, unit: unit.trim() }); } else { notFound.push(name.trim()); }
+            });
+            if (notFound.length > 0) { showToast(`Ingredients not found: ${notFound.join(', ')}. Please add them first.`, 'error'); }
+            document.getElementById('bulk-ingredients-input').value = ''; updateFormulationCost();
+        }
+        
+        async function handleBulkIngredientsCost() {
+            const text = document.getElementById('bulk-ingredients-cost-input').value; if (!text) return showToast('Input cannot be empty.', 'error');
+            loadingOverlay.classList.remove('hidden');
+            try {
+                const entries = text.split(',').map(s => s.trim()).filter(Boolean); if (entries.length === 0) throw new Error("No valid entries.");
+                let addedCount = 0;
+                for (const entry of entries) {
+                    const match = entry.match(/^(.*?)\s+([\d\.]+)\s+(\w+)$/); if (!match) continue; const [, name, cost, unit] = match.map(s => s.trim());
+                    if (state.ingredients.some(ing => ing.Name && ing.Name.toLowerCase() === name.toLowerCase())) continue;
+                    const newIngredient = await apiCall('addIngredient', { name, cost, unit }, false);
+                    if (newIngredient) { state.ingredients.push(newIngredient); addedCount++; }
+                }
+                if (addedCount > 0) { showToast(`${addedCount} new ingredient(s) added!`, 'success'); switchPage('ingredients'); } 
+                else { showToast('No new ingredients were added. Check duplicates or format.', 'error'); }
+                document.getElementById('bulk-ingredients-cost-input').value = '';
+            } catch (error) { showToast(`Error: ${error.message}`, 'error'); } finally { loadingOverlay.classList.add('hidden'); }
+        }
+
+        function addFormulationIngredientRow(ingredient = null) {
+            const container = document.getElementById('formulation-ingredients-container'); if (!container) return;
+            const opts = state.ingredients.map(ing => `<option value="${ing.ID}" data-cost="${ing.Cost}" data-unit="${ing.Unit}">${ing.Name}</option>`).join('');
+            const row = document.createElement('div'); row.className = 'flex items-center space-x-2 formulation-ingredient-row';
+            row.innerHTML = `<select class="ingredient-selector flex-grow p-2 border rounded-md bg-white form-input"><option value="">Select ingredient</option>${opts}</select><input type="number" step="any" class="ingredient-quantity w-24 p-2 border rounded-md form-input" placeholder="Qty"><select class="ingredient-unit-selector w-20 p-2 border rounded-md bg-white form-input"><option>ml</option><option>L</option><option>gm</option><option>kg</option></select><button type="button" data-action="remove-ingredient-row" class="text-red-500 font-bold">&times;</button>`;
+            container.appendChild(row);
+            if(ingredient){ row.querySelector('.ingredient-selector').value = ingredient.id; row.querySelector('.ingredient-quantity').value = ingredient.quantity; row.querySelector('.ingredient-unit-selector').value = ingredient.unit; }
+        }
+        function updateFormulationCost() { 
+            const ingredients = [...document.querySelectorAll('.formulation-ingredient-row')].map(r => { const selector = r.querySelector('.ingredient-selector'); if (!selector || selector.value === "") return null; return { id: selector.value, quantity: r.querySelector('.ingredient-quantity').value, unit: r.querySelector('.ingredient-unit-selector').value }; }).filter(Boolean);
+            document.getElementById('formulation-total-cost').textContent = `${CURRENCY_SYMBOL}${calculateFormulationCost(ingredients).toFixed(2)}`;
+        }
+
+        function handlePhotoSelection(event) { state.photoQueue = [...event.target.files]; if(state.photoQueue.length > 0) processPhotoQueue(); }
+        function processPhotoQueue() { if (state.photoQueue.length === 0) { if (state.currentTrialIdForCamera) { state.currentTrialIdForCamera = null; } return; }; const file = state.photoQueue.shift(); const reader = new FileReader(); reader.onload = e => openCropper(e.target.result); reader.readAsDataURL(file); }
+        function openCropper(imageData) { imageToCrop.src = imageData; cropperModal.style.display = 'block'; if(cropper) cropper.destroy(); cropper = new Cropper(imageToCrop, { viewMode: 0, autoCrop: false, background: false, movable: true, zoomable: true, scalable: true, rotatable: true }); }
+        
+        async function cropAndSaveImage() {
+            const croppedImageData = cropper.getCroppedCanvas().toDataURL('image/jpeg', 0.9);
+            const form = document.getElementById('trial-form');
+            let photoDate, locationStr;
+            if (form) {
+                photoDate = form.querySelector('#photo-date').value;
+                locationStr = form.querySelector('[name="location"]').value;
+            } else { // Handle quick add from trial card
+                photoDate = new Date().toISOString().split('T')[0];
+                const trial = state.trials.find(t => t.ID === state.currentTrialIdForCamera);
+                locationStr = trial?.Location || '';
+            }
+
+            let weather = null;
+            if (locationStr && photoDate) {
+                let coords = await resolveLocationToCoords(locationStr);
+                if (coords) {
+                    const weatherResult = await fetchWeather(coords.lat, coords.lon, photoDate);
+                    if (weatherResult && weatherResult.data) {
+                        weather = weatherResult.data;
+                    } else if (weatherResult && weatherResult.error) {
+                        showToast(weatherResult.error, 'error');
+                    }
+                } else {
+                    showToast('Could not resolve photo location to coordinates.', 'error');
+                }
+            }
+            
+            const photoData = { fileData: croppedImageData, fileName: `cropped_${Date.now()}.jpg`, mimeType: 'image/jpeg', label: '', date: photoDate, weather };
+            if (state.currentTrialIdForCamera) {
+                const trialId = state.currentTrialIdForCamera; 
+                closeCropper(); 
+                await handleQuickPhotoAdd(trialId, [photoData]);
+            } else {
+                state.croppedPhotosData.push(photoData); updatePhotoPreview(); closeCropper();
+            }
+        }
+
+
+        function closeCropper() { if(cropper) cropper.destroy(); cropper = null; cropperModal.style.display = 'none'; if (state.photoQueue.length > 0) processPhotoQueue(); else { state.currentTrialIdForCamera = null; } }
+        
+        function updatePhotoPreview() {
+            const previewContainer = document.getElementById('photo-preview'); if (!previewContainer) return;
+            previewContainer.innerHTML = '';
+            state.croppedPhotosData.forEach((data, index) => {
+                const wrapper = document.createElement('div'); wrapper.className = 'relative';
+                const imgSrc = data.isExisting ? `https://images.weserv.nl/?url=${encodeURIComponent(data.fileData)}` : data.fileData;
+                wrapper.innerHTML = `<img src="${imgSrc}" class="h-24 w-24 object-cover rounded-md border"><input type="text" data-index="${index}" class="photo-label-input absolute bottom-0 left-0 w-full text-xs p-1 bg-black bg-opacity-50 text-white" placeholder="Label..." value="${data.label || ''}"><button data-action="remove-photo" data-index="${index}" class="absolute top-0 right-0 bg-red-500 text-white rounded-full h-5 w-5 flex items-center justify-center text-xs font-bold">&times;</button>`;
+                previewContainer.appendChild(wrapper);
+            });
+        }
+        
+        async function uploadPhotos(photosData) {
+            if (!photosData.length) return [];
+            const results = await Promise.all(photosData.map(photoData => apiCall('uploadPhoto', { fileData: photoData.fileData, fileName: photoData.fileName, mimeType: photoData.mimeType }, false)));
+            return results.filter(r => r && r.url).map((result, index) => ({ 
+                url: result.url, 
+                label: photosData[index].label,
+                date: photosData[index].date,
+                weather: photosData[index].weather
+            }));
+        }
+
+        async function handleQuickPhotoAdd(trialId, photosData) {
+            showToast(`Adding ${photosData.length} photo(s)...`);
+            const trialIndex = state.trials.findIndex(t => t.ID === trialId);
+            if (trialIndex === -1) return showToast('Trial not found locally.', 'error');
+            const trial = state.trials[trialIndex];
+            const originalTrial = JSON.parse(JSON.stringify(trial));
+            
+            // Optimistic UI update
+            const existingPhotos = safeJsonParse(originalTrial.PhotoURLs);
+            const newPhotosForUI = photosData.map(p => ({ ...p, url: p.fileData }));
+            trial.PhotoURLs = JSON.stringify([...existingPhotos, ...newPhotosForUI]);
+            
+            let speciesUpdated = false;
+            // Automatic weed identification for first photo in an existing trial
+            if (existingPhotos.length === 0 && photosData.length > 0) {
+                 showToast('Identifying weeds in first photo...', 'success');
+                
+                const firstPhoto = photosData[0];
+                const identifications = await identifyWeed(firstPhoto.fileData, firstPhoto.mimeType);
+
+                const currentSpecies = trial.WeedSpecies || '';
+                const speciesSet = new Set(currentSpecies.split(',').map(s => s.trim()).filter(Boolean));
+                const originalSize = speciesSet.size;
+
+                if (identifications && identifications.length > 0) {
+                    identifications.forEach(id => {
+                        if (id && id.name && !speciesSet.has(id.name)) {
+                            speciesSet.add(id.name);
+                        }
+                    });
+
+                    if (speciesSet.size > originalSize) {
+                        trial.WeedSpecies = Array.from(speciesSet).join(', ');
+                        speciesUpdated = true;
+                    }
+                }
+            }
+
+
+            state.trials[trialIndex] = { ...trial };
+            switchPage('trials');
+            
+            try {
+                const uploadedPhotoURLs = await uploadPhotos(photosData);
+                if (uploadedPhotoURLs.length === 0) throw new Error("Photo upload failed.");
+                
+                const finalPhotos = [...existingPhotos, ...uploadedPhotoURLs];
+                trial.PhotoURLs = JSON.stringify(finalPhotos);
+                
+                const result = await apiCall('updateTrialRecord', { id: trialId, PhotoURLs: trial.PhotoURLs, WeedSpecies: trial.WeedSpecies }, false);
+                
+                if (!result || !result.record) throw new Error("Server failed to save photo and weed data.");
+                
+                state.trials[trialIndex] = result.record; // Update with final record from server
+                showToast(speciesUpdated ? 'Photo(s) added & new weeds identified!' : 'Photo(s) added!', 'success');
+                switchPage('trials');
+            } catch (error) {
+                showToast(`Error: ${error.message}`, 'error');
+                state.trials[trialIndex] = originalTrial; // Rollback
+                switchPage('trials');
+            } finally {
+                state.currentTrialIdForCamera = null;
+            }
+        }
+        
+        async function openCamera(trialId = null) {
+            state.currentTrialIdForCamera = trialId;
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { return showToast("Camera not supported on this browser.", "error"); }
+            try {
+                cameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+                videoElement.srcObject = cameraStream;
+                cameraModal.style.display = 'block';
+            } catch (err) {
+                console.error("Camera Error:", err);
+                let message = "Could not access camera.";
+                if (err.name === "NotAllowedError") { message = "Camera access was denied. Check browser permissions."; } 
+                else if (err.name === "NotFoundError") { message = "No camera found on this device."; }
+                showToast(message, 'error');
+                state.currentTrialIdForCamera = null;
+            }
+        }
+        function closeCamera() { if (cameraStream) { cameraStream.getTracks().forEach(track => track.stop()); } cameraModal.style.display = 'none'; }
+        function capturePhoto() {
+            canvasElement.width = videoElement.videoWidth; canvasElement.height = videoElement.videoHeight;
+            canvasElement.getContext('2d').drawImage(videoElement, 0, 0, canvasElement.width, canvasElement.height);
+            closeCamera(); openCropper(canvasElement.toDataURL('image/jpeg', 0.9));
+        }
+
+        async function geocodeLocation(name) {
+            if (!name) return null;
+            try {
+                const res = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(name)}&count=1`);
+                if (!res.ok) throw new Error('Geocoding API failed');
+                const data = await res.json();
+                if (data.results && data.results.length > 0) {
+                    const { latitude, longitude, name, admin1 } = data.results[0];
+                    return { lat: latitude, lon: longitude, name: admin1 ? `${name}, ${admin1}` : name };
+                }
+                return null;
+            } catch (e) { console.error('Geocoding failed:', e); return null; }
+        }
+        
+        async function resolveLocationToCoords(locationStr) {
+            if (!locationStr) return null;
+            const coordMatch = locationStr.match(/^(-?\d+\.?\d*),\s*(-?\d+\.?\d*)$/);
+            if (coordMatch) {
+                return { lat: parseFloat(coordMatch[1]), lon: parseFloat(coordMatch[2]) };
+            } else {
+                const geoResult = await geocodeLocation(locationStr);
+                return geoResult ? { lat: geoResult.lat, lon: geoResult.lon, name: geoResult.name } : null;
+            }
+        }
+
+        function getGeoLocation(callback) {
+            if (!navigator.geolocation) return showToast('Geolocation is not supported by your browser.', 'error');
+            showToast('Fetching location...');
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    const { latitude, longitude } = position.coords;
+                    callback({ lat: latitude, lon: longitude });
+                }, () => showToast('Unable to retrieve location. Please check browser/OS permissions and try again.', 'error')
+            );
+        }
+
+       async function fetchWeather(lat, lon, date) {
+            if (!lat || !lon || !date) return { error: "Latitude, longitude, and date are required." };
+        
+            const selectedDate = new Date(date);
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const dateStr = selectedDate.toISOString().split('T')[0];
+        
+            let apiUrl;
+            let isForecast = selectedDate >= today;
+        
+            if (isForecast) {
+                const sixteenDaysFromNow = new Date(today);
+                sixteenDaysFromNow.setDate(today.getDate() + 16);
+                if (selectedDate > sixteenDaysFromNow) {
+                    return { error: "Forecast is only available for the next 16 days." };
+                }
+                apiUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=temperature_2m_max,relative_humidity_2m_mean,precipitation_sum,wind_speed_10m_max&timezone=auto`;
+            } else {
+                apiUrl = `https://archive-api.open-meteo.com/v1/archive?latitude=${lat}&longitude=${lon}&start_date=${dateStr}&end_date=${dateStr}&daily=temperature_2m_max,precipitation_sum,wind_speed_10m_max&hourly=relative_humidity_2m&timezone=auto`;
+            }
+        
+            try {
+                const res = await fetch(apiUrl);
+                if (!res.ok) {
+                     console.error('Weather API response:', await res.text());
+                     throw new Error('Weather API request failed');
+                }
+                const data = await res.json();
+                
+                if (data.error) {
+                    return { error: `Weather API: ${data.reason}` };
+                }
+        
+                if (isForecast) {
+                    if (data.daily && data.daily.time && data.daily.time.length > 0) {
+                        const dateIndex = data.daily.time.indexOf(dateStr);
+                        if (dateIndex === -1) return { error: "Forecast data not available for this specific date." };
+        
+                        return { data: {
+                            temp: data.daily.temperature_2m_max[dateIndex],
+                            humidity: data.daily.relative_humidity_2m_mean[dateIndex],
+                            wind: data.daily.wind_speed_10m_max[dateIndex],
+                            rain: data.daily.precipitation_sum[dateIndex]
+                        }};
+                    }
+                } else { // Handle archive data
+                    if (data.daily && data.hourly) {
+                        const dateIndex = data.daily.time.indexOf(dateStr);
+                        if (dateIndex === -1) return { error: "Archive data not available for this specific date." };
+        
+                        let avgHumidity = null;
+                        if (data.hourly.relative_humidity_2m && data.hourly.relative_humidity_2m.length > 0) {
+                            const sum = data.hourly.relative_humidity_2m.reduce((a, b) => a + b, 0);
+                            avgHumidity = Math.round(sum / data.hourly.relative_humidity_2m.length);
+                        }
+        
+                        return { data: {
+                            temp: data.daily.temperature_2m_max[dateIndex],
+                            humidity: avgHumidity,
+                            wind: data.daily.wind_speed_10m_max[dateIndex],
+                            rain: data.daily.precipitation_sum[dateIndex]
+                        }};
+                    }
+                }
+                
+                return { error: "No weather data returned from API."};
+            } catch (e) {
+                console.error("Weather fetch failed:", e);
+                return { error: e.message };
+            }
+        }
+
+        async function fetchWeatherForTrialDate() {
+            const form = document.getElementById('trial-form'); if (!form) return;
+            const locationInput = form.querySelector('[name="location"]');
+            const trialDate = form.querySelector('[name="date"]').value;
+            if (!locationInput.value || !trialDate) { return showToast('Please set location and trial date first.', 'error'); }
+            
+            showToast('Resolving location & fetching weather...');
+            const coords = await resolveLocationToCoords(locationInput.value);
+            
+            if (coords) {
+                if(coords.name) locationInput.value = coords.name; // Update input with resolved name
+                const weatherResult = await fetchWeather(coords.lat, coords.lon, trialDate);
+                if (weatherResult && weatherResult.data) {
+                    const weather = weatherResult.data;
+                    form.querySelector('[name="temperature"]').value = weather.temp;
+                    form.querySelector('[name="humidity"]').value = weather.humidity;
+                    form.querySelector('[name="windspeed"]').value = weather.wind;
+                    form.querySelector('[name="rain"]').value = weather.rain;
+                    showToast('Weather data populated.', 'success');
+                } else {
+                    const errorMessage = weatherResult ? weatherResult.error : 'Failed to fetch weather data.';
+                    showToast(errorMessage, 'error');
+                }
+            } else {
+                showToast('Could not find coordinates for that location name.', 'error');
+            }
+        }
+
+        async function getImageAsResizedBase64(url, maxWidth = 800, quality = 0.8) {
+            return new Promise((resolve) => {
+                const img = new Image();
+                img.crossOrigin = 'Anonymous';
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    let width = img.width;
+                    let height = img.height;
+
+                    if (width > maxWidth) {
+                        height *= maxWidth / width;
+                        width = maxWidth;
+                    }
+
+                    canvas.width = width;
+                    canvas.height = height;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, width, height);
+                    resolve(canvas.toDataURL('image/jpeg', quality));
+                };
+                img.onerror = () => {
+                    console.error('Could not load image for resizing:', url);
+                    resolve(null);
+                };
+                img.src = url.startsWith('data:image') ? url : `https://images.weserv.nl/?url=${encodeURIComponent(url)}`;
+            });
+        }
+        
+        async function generateTrialPdf(trialId, options = {}) {
+            const { withIngredients = false, orientation = 'p', withWeeds = false } = options;
+            const trial = state.trials.find(t => t.ID === trialId);
+            if (!trial) return;
+            showToast('Generating PDF...');
+
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF({ orientation });
+            const primary = [22, 160, 133], secondary = [44, 62, 80];
+            let currentY = 0;
+
+            let controlDurationStr;
+            const isFinal = String(trial.ControlFinalized).toLowerCase() === 'true';
+            if (isFinal) {
+                if (trial.FinalControlDuration != null) {
+                    controlDurationStr = `${trial.FinalControlDuration} Days (Final)`;
+                } else if (trial.FinalizationDate && trial.Date) {
+                    const days = Math.floor((new Date(trial.FinalizationDate) - new Date(trial.Date)) / (1000 * 60 * 60 * 24));
+                    controlDurationStr = `${days < 0 ? 0 : days} Days (Final)`;
+                } else {
+                    controlDurationStr = 'Finalized';
+                }
+            } else if (trial.Date) {
+                const days = Math.floor((new Date() - new Date(trial.Date)) / (1000 * 60 * 60 * 24));
+                controlDurationStr = `${days < 0 ? 0 : days} Days`;
+            } else {
+                controlDurationStr = 'N/A';
+            }
+
+            // Header
+            doc.setFillColor(...primary);
+            doc.rect(0, 0, doc.internal.pageSize.width, 25, 'F');
+            doc.setFontSize(22).setTextColor(255).setFont(undefined, 'bold').text("Herbicide Trial Report", doc.internal.pageSize.width / 2, 15, { align: 'center' });
+            doc.setFontSize(16).setTextColor(...secondary).text(trial.FormulationName, 14, 35);
+
+            // Side-by-side Trial Info and Weather Tables
+            const trialBody = [
+                ['Investigator:', trial.InvestigatorName || 'N/A'],
+                ['Date:', new Date(trial.Date).toLocaleDateString()],
+                ['Control Duration:', controlDurationStr],
+                ['Dosage:', trial.Dosage || 'N/A'],
+                ['Weed Species:', trial.WeedSpecies || 'N/A'],
+                ['Result:', trial.Result || 'N/A'],
+                ['Location:', trial.Location || 'N/A']
+            ];
+            
+            const weatherBody = [
+                ['Temperature:', `${trial.Temperature||'N/A'}°C`],
+                ['Humidity:', `${trial.Humidity||'N/A'}%`],
+                ['Wind:', `${trial.Windspeed||'N/A'} km/h`],
+                ['Rain:', `${trial.Rain||'N/A'} mm`]
+            ];
+
+            const tableConfig = {
+                theme: 'striped',
+                headStyles: { fillColor: secondary },
+                columnStyles: { 0: { cellWidth: 40, fontStyle: 'bold' } },
+            };
+
+            doc.autoTable({
+                ...tableConfig,
+                startY: 42,
+                head: [['Trial Information', '']],
+                body: trialBody,
+                tableWidth: doc.internal.pageSize.width / 2 - 21,
+                margin: { left: 14 },
+            });
+            const trialTableEnd = doc.autoTable.previous.finalY;
+
+            let weatherTableEnd = 0;
+            if (trial.Temperature) {
+                doc.autoTable({
+                    ...tableConfig,
+                    startY: 42,
+                    head: [['Weather on Trial Date', '']],
+                    body: weatherBody,
+                    tableWidth: doc.internal.pageSize.width / 2 - 21,
+                    margin: { left: doc.internal.pageSize.width / 2 + 7 },
+                });
+                weatherTableEnd = doc.autoTable.previous.finalY;
+            }
+            
+            currentY = Math.max(trialTableEnd, weatherTableEnd);
+
+            const addTextBlock = (title, content, startY) => {
+                let y = startY;
+                const pageHeight = doc.internal.pageSize.height;
+                if (y > pageHeight - 50) { doc.addPage(); y = 20; }
+                y += 10;
+                doc.setFontSize(14).setTextColor(...secondary).text(title, 14, y);
+                y += 6;
+                doc.setFontSize(10).setTextColor(80);
+                const split = doc.splitTextToSize(String(content || 'N/A'), doc.internal.pageSize.width - 28);
+                if (y + (split.length * 4) > pageHeight - 20) { doc.addPage(); y = 20; }
+                doc.text(split, 14, y);
+                return y + (split.length * 4) + 2;
+            };
+
+            currentY = addTextBlock('Conclusion', trial.Conclusion, currentY);
+            currentY = addTextBlock('Notes', trial.Notes, currentY);
+
+            if (withIngredients) {
+                const f = state.formulations.find(f => f.ID === trial.FormulationID);
+                if (f) {
+                    const ings = safeJsonParse(f.IngredientsJSON);
+                    if (ings.length > 0) {
+                        if (currentY > doc.internal.pageSize.height - 60) {
+                            doc.addPage();
+                            currentY = 20;
+                        }
+                        doc.autoTable({
+                            startY: currentY + 5,
+                            head: [['Ingredient', 'Quantity', 'Unit']],
+                            body: ings.map(i => [i.name, i.quantity, i.unit]),
+                            theme: 'grid',
+                            headStyles: { fillColor: primary }
+                        });
+                        currentY = doc.autoTable.previous.finalY;
+                    }
+                }
+            }
+            
+            const photos = safeJsonParse(trial.PhotoURLs);
+            if (photos.length > 0) {
+                if (currentY > doc.internal.pageSize.height - 60) { doc.addPage(); currentY = 0; }
+                
+                doc.addPage();
+                currentY = 20;
+                doc.setFontSize(14).setTextColor(...secondary).text('Photo Log & Weather Conditions', 14, currentY);
+                currentY += 5;
+                const photoTableBody = photos.map(p => {
+                    const weather = p.weather || {};
+                    return [ p.label || '-', p.date ? new Date(p.date).toLocaleDateString() : 'N/A', weather.temp ? `${weather.temp}°C` : 'N/A', weather.humidity ? `${weather.humidity}%` : 'N/A', weather.wind ? `${weather.wind} km/h` : 'N/A', weather.rain ? `${weather.rain} mm` : 'N/A',];
+                });
+                doc.autoTable({ startY: currentY, head: [['Label', 'Date', 'Temp', 'Humidity', 'Wind', 'Rain']], body: photoTableBody, theme: 'grid', headStyles: { fillColor: primary } });
+                
+                currentY = doc.autoTable.previous.finalY + 10;
+                doc.setFontSize(14).setTextColor(...secondary).text('Photos', 14, currentY);
+                currentY += 8; const pW = 85, pH = 65; let x = 14; 
+                for (const p of photos) { if (p.url) { const imgData = await getImageAsResizedBase64(p.url); if (imgData) { if (currentY + pH > doc.internal.pageSize.height - 20) { doc.addPage(); currentY = 20; } doc.addImage(imgData, 'JPEG', x, currentY, pW, pH); doc.setFontSize(9).setTextColor(100).text(p.label || '', x + pW / 2, currentY + pH + 4, { align: 'center' }); x += pW + 5; if (x + pW > doc.internal.pageSize.width - 14) { x = 14; currentY += pH + 15; } } } }
+                currentY = doc.autoTable.previous.finalY;
+            }
+
+            const weedPhotos = safeJsonParse(trial.WeedPhotosJSON);
+            if (withWeeds && weedPhotos.length > 0) {
+                doc.addPage();
+                currentY = 20;
+                doc.setFontSize(14).setTextColor(...secondary).text('Weed Identification Report', 14, currentY);
+                currentY += 8;
+
+                const pW = (doc.internal.pageSize.width - 42) / 2;
+                const pH = pW * 0.75;
+                let x = 14;
+
+                for (const p of weedPhotos) {
+                    if (p.url) {
+                        const imgData = await getImageAsResizedBase64(p.url);
+                        if (imgData) {
+                            if (currentY + pH + 15 > doc.internal.pageSize.height - 20) {
+                                doc.addPage();
+                                currentY = 20;
+                                x = 14;
+                            }
+                            doc.addImage(imgData, 'JPEG', x, currentY, pW, pH);
+                            const bestMatch = p.identifications?.[0];
+                            const text = bestMatch ? `${bestMatch.name} (${(bestMatch.confidence * 100).toFixed(1)}%)` : 'Unknown';
+                            doc.setFontSize(9).setTextColor(100).text(text, x + pW / 2, currentY + pH + 4, { align: 'center' });
+
+                            x += pW + 14;
+                            if (x >= doc.internal.pageSize.width - 14) {
+                                x = 14;
+                                currentY += pH + 15;
+                            }
+                        }
+                    }
+                }
+            }
+
+
+            const pageCount = doc.internal.getNumberOfPages();
+            for (let i = 1; i <= pageCount; i++) {
+                doc.setPage(i);
+                doc.setFontSize(8).setTextColor(150).text(`Page ${i}/${pageCount}`, doc.internal.pageSize.width / 2, doc.internal.pageSize.height - 10, { align: 'center' });
+            }
+
+            doc.save(`Trial_${trial.FormulationName}_${trial.Date}.pdf`);
+        }
+
+        function updateOrganiseBar() {
+            const bar = document.getElementById('organise-bar'); const countEl = document.getElementById('selected-trials-count'); if (!bar || !countEl) return;
+            if (state.selectedTrials.length > 0) { countEl.textContent = `${state.selectedTrials.length} trial(s) selected`; bar.classList.remove('hidden'); } 
+            else { bar.classList.add('hidden'); }
+        }
+        
+        function exportJson() {
+            const data = { ingredients: state.ingredients, formulations: state.formulations, trials: state.trials, organisations: state.organisations, exportedAt: new Date().toISOString() };
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `herbicide_backup_${new Date().toISOString().split('T')[0]}.json`; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url); showToast('JSON export started.');
+        }
+
+        async function exportWithPhotos() {
+            loadingOverlay.classList.remove('hidden'); showToast('Preparing ZIP export...', 'success');
+            const zip = new JSZip(); zip.file("data.json", JSON.stringify({ ingredients: state.ingredients, formulations: state.formulations, trials: state.trials, organisations: state.organisations }, null, 2));
+            const photoFolder = zip.folder("photos"); const promises = [];
+            state.trials.forEach(trial => {
+                safeJsonParse(trial.PhotoURLs).forEach(photo => { 
+                    if (photo.url) { 
+                        const fileName = `trial_${trial.ID}_${photo.url.substring(photo.url.lastIndexOf('=') + 1)}.jpg`; 
+                        promises.push( fetch(`https://images.weserv.nl/?url=${encodeURIComponent(photo.url)}`).then(res => res.blob()).then(blob => photoFolder.file(fileName, blob)).catch(err => console.error("ZIP fetch error:", err)) ); 
+                    } 
+                });
+                 safeJsonParse(trial.WeedPhotosJSON).forEach(photo => { 
+                    if (photo.url) { 
+                        const fileName = `weed_${trial.ID}_${photo.url.substring(photo.url.lastIndexOf('=') + 1)}.jpg`; 
+                        promises.push( fetch(`https://images.weserv.nl/?url=${encodeURIComponent(photo.url)}`).then(res => res.blob()).then(blob => photoFolder.file(fileName, blob)).catch(err => console.error("ZIP fetch error:", err)) ); 
+                    } 
+                });
+            });
+            await Promise.all(promises);
+            zip.generateAsync({ type: "blob" }).then(content => { const url = URL.createObjectURL(content); const a = document.createElement('a'); a.href = url; a.download = `herbicide_backup_with_photos_${new Date().toISOString().split('T')[0]}.zip`; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url); showToast('ZIP download started.'); loadingOverlay.classList.add('hidden'); });
+        }
+        
+        async function exportStandaloneHTML() {
+            loadingOverlay.classList.remove('hidden');
+            showToast('Generating standalone file... This may take a moment.', 'success');
+
+            const exportState = JSON.parse(JSON.stringify(state));
+
+            const photoPromises = [];
+            if(exportState.trials) {
+                for (const trial of exportState.trials) {
+                    if (trial.PhotoURLs) {
+                        const photos = safeJsonParse(trial.PhotoURLs);
+                        for (const photo of photos) {
+                            if (photo.url) {
+                                photoPromises.push(getImageAsResizedBase64(photo.url).then(dataUrl => {
+                                    if (dataUrl) photo.url = dataUrl;
+                                }));
+                            }
+                        }
+                        trial.PhotoURLs = JSON.stringify(photos);
+                    }
+                    if (trial.WeedPhotosJSON) {
+                        const weedPhotos = safeJsonParse(trial.WeedPhotosJSON);
+                        for (const photo of weedPhotos) {
+                            if (photo.url) {
+                                photoPromises.push(getImageAsResizedBase64(photo.url).then(dataUrl => {
+                                    if (dataUrl) photo.url = dataUrl;
+                                }));
+                            }
+                        }
+                        trial.WeedPhotosJSON = JSON.stringify(weedPhotos);
+                    }
+                }
+            }
+
+            await Promise.all(photoPromises);
+
+            const currentHtml = document.documentElement.outerHTML;
+            const scriptToInject = `<script>window.__EMBEDDED_STATE__ = ${JSON.stringify(exportState)};<\/script>`;
+            const finalHtml = currentHtml.replace('</head>', `${scriptToInject}</head>`);
+            
+            const blob = new Blob([finalHtml], { type: 'text/html' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `herbicide_archive_${new Date().toISOString().split('T')[0]}.html`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+
+            loadingOverlay.classList.add('hidden');
+            showToast('Standalone HTML file exported.', 'success');
+        }
+
+        async function handleImport() {
+            const file = document.getElementById('import-file-input').files[0];
+            if (!file) return showToast('Please select a file.', 'error');
+
+            const processJsonData = (jsonData) => {
+                try {
+                    const data = JSON.parse(jsonData);
+                    if (!data.ingredients || !data.formulations || !data.trials) throw new Error('Invalid backup file.');
+                    showConfirmation('Overwrite All Data?', 'Importing will overwrite all current data. Continue?', async () => {
+                        loadingOverlay.classList.remove('hidden');
+                        try {
+                            await clearAllData(false);
+
+                            showToast('Importing data... This may take a moment.', 'success');
+
+                            const addPromises = [];
+                            if (data.ingredients && data.ingredients.length > 0) addPromises.push(apiCall('addBatchIngredients', { items: data.ingredients }, false));
+                            if (data.formulations && data.formulations.length > 0) addPromises.push(apiCall('addBatchFormulations', { items: data.items }, false));
+                            if (data.trials && data.trials.length > 0) addPromises.push(apiCall('addBatchTrials', { items: data.trials }, false));
+                            if (data.organisations && data.organisations.length > 0) addPromises.push(apiCall('addBatchOrganisations', { items: data.organisations }, false));
+
+                            await Promise.all(addPromises);
+                            
+                            showToast('Data uploaded. Refreshing app...', 'success');
+                            await initializeApp(false);
+
+                            showToast('Data imported successfully!', 'success');
+                        } catch (error) {
+                            showToast(`Import failed: ${error.message}`, 'error');
+                            await initializeApp(false);
+                        } finally {
+                            loadingOverlay.classList.add('hidden');
+                        }
+                    });
+                } catch (error) {
+                    showToast(`Import failed: ${error.message}`, 'error');
+                }
+            };
+
+            if (file.name.endsWith('.zip')) {
+                showToast('Reading ZIP file...', 'success');
+                const zip = new JSZip();
+                zip.loadAsync(file).then(zipContent => {
+                    const dataFile = zipContent.file('data.json');
+                    if (dataFile) {
+                        dataFile.async('string').then(processJsonData);
+                    } else {
+                        showToast('Error: data.json not found in the ZIP file.', 'error');
+                    }
+                }).catch(err => showToast(`Error reading ZIP file: ${err.message}`, 'error'));
+            } else if (file.name.endsWith('.json')) {
+                const reader = new FileReader();
+                reader.onload = (e) => processJsonData(e.target.result);
+                reader.readAsText(file);
+            } else {
+                showToast('Unsupported file type. Please select a .json or .zip file.', 'error');
+            }
+        }
+
+
+        async function clearAllData(isUserInitiated = true) {
+            const clearAction = async () => {
+                 if (isUserInitiated) {
+                    loadingOverlay.classList.remove('hidden');
+                    showToast('Deleting all data...');
+                }
+
+                await Promise.all([
+                    ...(state.organisations || []).map(o => apiCall('deleteOrganisation', { id: o.ID }, false)),
+                    ...(state.trials || []).map(t => apiCall('deleteTrial', { id: t.ID }, false)),
+                    ...(state.formulations || []).map(f => apiCall('deleteFormulation', { id: f.ID }, false)),
+                    ...(state.ingredients || []).map(i => apiCall('deleteIngredient', { id: i.ID }, false)),
+                ]);
+                
+                state = { ...state, trials: [], formulations: [], ingredients: [], organisations: [] };
+                
+                if (isUserInitiated) {
+                    switchPage(state.currentPage);
+                    showToast('All data has been cleared.', 'success');
+                    loadingOverlay.classList.add('hidden');
+                }
+            };
+
+            if (isUserInitiated) {
+                showConfirmation('Clear All Data?', 'This will permanently delete everything. Are you sure?', () => clearAction(true));
+            } else {
+                await clearAction(false);
+            }
+        }
+        
+        async function exportToPpt(trialId) {
+            const trial = state.trials.find(t => t.ID === trialId); if (!trial) return; showToast('Generating PPTX...');
+            
+            let controlDurationStr;
+            const isFinal = String(trial.ControlFinalized).toLowerCase() === 'true';
+            if (isFinal) {
+                if (trial.FinalControlDuration != null) {
+                    controlDurationStr = `${trial.FinalControlDuration} Days (Final)`;
+                } else {
+                    controlDurationStr = 'Finalized';
+                }
+            } else if (trial.Date) {
+                const days = Math.floor((new Date() - new Date(trial.Date)) / (1000 * 60 * 60 * 24));
+                controlDurationStr = `${days < 0 ? 0 : days} Days`;
+            } else {
+                controlDurationStr = 'N/A';
+            }
+
+            let pptx = new PptxGenJS();
+            let title = pptx.addSlide(); title.addText(`Herbicide Trial: ${trial.FormulationName}`, { x: 0.5, y: 1, w: '90%', fontSize: 24, bold: true, align: 'center' }); title.addText(`Date: ${new Date(trial.Date).toLocaleDateString()}`, { x: 0.5, y: 2, w: '90%', fontSize: 18, align: 'center' });
+            let dataSlide = pptx.addSlide(); dataSlide.addText('Trial Details', { x: 0.5, y: 0.25, w: 5, fontSize: 18, bold: true }); dataSlide.addText([ { text: 'Investigator: ', options:{bold: true} }, { text: trial.InvestigatorName||'N/A' }, { text: 'Dosage: ', options:{bold: true, breakLine: true} }, { text: trial.Dosage||'N/A' }, { text: 'Control Duration: ', options:{bold: true, breakLine: true} }, { text: controlDurationStr }, { text: 'Result: ', options:{bold: true, breakLine: true} }, { text: trial.Result||'N/A' }, { text: 'Conclusion: ', options:{bold: true, breakLine: true} }, { text: trial.Conclusion||'N/A' }, ], { x: 0.5, y: 1, w: '90%', fontSize: 14 });
+            const photos = safeJsonParse(trial.PhotoURLs); for (const p of photos) { if (p.url) { const imgData = await getImageAsResizedBase64(p.url); if (imgData) { let photoSlide = pptx.addSlide(); photoSlide.addText(p.label || 'Trial Photo', { x: 0.5, y: 0.25, w: '90%', fontSize: 18, bold: true, align: 'center' }); photoSlide.addImage({ data: imgData, x: 1, y: 1, w: 8, h: 4.5 }); } } }
+            pptx.writeFile({ fileName: `Trial_${trial.FormulationName}_${trial.Date}.pptx` });
+        }
+
+        async function handleAiQuery(query) {
+            if (!state.geminiApiKey) { return appendMessageToChat('Please add your Gemini API Key in Settings.', 'ai'); }
+            
+            const userMessage = { text: query, sender: 'user', image: state.aiAttachedImage.fileData, mimeType: state.aiAttachedImage.mimeType };
+            appendMessageToChat(userMessage.text, userMessage.sender, true, userMessage.image, userMessage.mimeType);
+            
+            document.getElementById('ai-form').reset();
+            const previewContainer = document.getElementById('ai-image-preview-container');
+            previewContainer.style.display = 'none';
+
+            const { fileData, mimeType } = state.aiAttachedImage;
+            state.aiAttachedImage = { fileData: null, mimeType: null };
+
+            const ingredientsContext = state.ingredients.map(i => `- Ingredient: ${i.Name}, Cost: ${CURRENCY_SYMBOL}${i.Cost} per ${i.Unit}`).join('\n');
+
+            const formulationsContext = state.formulations.map(f => {
+                const ingredients = safeJsonParse(f.IngredientsJSON);
+                const ingredientsString = ingredients.map(ing => `${ing.name} (${ing.quantity}${ing.unit})`).join(', ');
+                return `- Formulation: ${f.Name}, Cost: ${CURRENCY_SYMBOL}${parseFloat(f.EstimatedCost || 0).toFixed(2)}, Ingredients: [${ingredientsString}], Notes: ${f.Notes || 'N/A'}`;
+            }).join('\n');
+
+            const trialsContext = state.trials.map(t => {
+                const photoData = safeJsonParse(t.PhotoURLs);
+                const photoInfo = photoData.length > 0 ? `${photoData.length} photo(s) available.` : 'No photos.';
+                const weatherInfo = (t.Temperature || t.Humidity || t.Windspeed || t.Rain)
+                    ? `Weather: ${t.Temperature}°C, ${t.Humidity}% humidity, ${t.Windspeed} km/h wind, ${t.Rain} mm rain.`
+                    : 'No weather data.';
+                const weedPhotoData = safeJsonParse(t.WeedPhotosJSON);
+                const weedInfo = weedPhotoData.length > 0 ? `${weedPhotoData.length} weed photo(s) identified.` : 'No weed photos.';
+
+                return `- Trial for '${t.FormulationName}' by ${t.InvestigatorName} on ${new Date(t.Date).toLocaleDateString()}:
+    - Dosage: ${t.Dosage || 'N/A'}
+    - Weed Species: ${t.WeedSpecies || 'N/A'}
+    - Result: ${t.Result || 'Not set'}
+    - ${weatherInfo}
+    - Conclusion: ${t.Conclusion || 'N/A'}
+    - ${photoInfo}
+    - ${weedInfo}`;
+            }).join('\n\n');
+
+            const organisationsContext = state.organisations.map(o => {
+                const trialIds = safeJsonParse(o.TrialIDs);
+                const trialNames = trialIds.map(id => {
+                    const trial = state.trials.find(t => t.ID === id);
+                    return trial ? `${trial.FormulationName} on ${new Date(trial.Date).toLocaleDateString()}` : '';
+                }).filter(Boolean).join('; ');
+                return `- Organisation: "${o.Name}" contains trials: [${trialNames}]`;
+            }).join('\n');
+
+            const systemPrompt = `You are a friendly and expert AI assistant for a herbicide trial management app. Your primary role is to answer user questions based on the data context provided below. Be conversational and helpful. You can now see images uploaded by the user. If an image of a plant is provided, use your vision capabilities to identify it and provide relevant information. Correlate your identification with the user's trial data if asked.
+
+- Analyze the user's question in the context of the entire conversation history.
+- If a question is vague (e.g., "check again"), use the conversation history to understand what they are referring to.
+- If you genuinely cannot answer from the provided data and conversation context, politely ask for clarification. Do not state "The provided data does not contain..." unless absolutely necessary.
+- You have access to a search tool for general knowledge questions, but prioritize using the app data provided.
+
+### APP DATA CONTEXT ###
+#### INGREDIENT DATA
+${ingredientsContext.length > 0 ? ingredientsContext : 'No ingredient data available.'}
+#### FORMULATION DATA
+${formulationsContext.length > 0 ? formulationsContext : 'No formulation data available.'}
+#### TRIAL DATA
+${trialsContext.length > 0 ? trialsContext : 'No trial data available.'}
+#### ORGANISATION DATA
+${organisationsContext.length > 0 ? organisationsContext : 'No organisation data available.'}
+########################`;
+
+             const chatHistoryForApi = state.aiChatHistory.map(message => {
+                const parts = [{ text: message.text.replace(/<br>/g, '\n') }];
+                if (message.image) {
+                    parts.push({
+                        inlineData: {
+                            mimeType: message.mimeType,
+                            data: message.image.split(',')[1]
+                        }
+                    });
+                }
+                return {
+                    role: message.sender === 'user' ? 'user' : 'model',
+                    parts: parts
+                };
+            });
+
+            try {
+                const payload = {
+                    contents: chatHistoryForApi,
+                    systemInstruction: { parts: [{ text: systemPrompt }] },
+                    tools: [{ "google_search": {} }]
+                };
+
+                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${state.geminiApiKey}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!response.ok) { const err = await response.json(); throw new Error(err.error.message || 'API Error'); }
+                const result = await response.json(); if(!result.candidates?.[0]?.content) throw new Error("Invalid response from AI.");
+                const aiResponseText = result.candidates[0].content.parts[0].text.replace(/\n/g, '<br>');
+                appendMessageToChat(aiResponseText, 'ai');
+            } catch (error) { console.error("AI Error:", error); appendMessageToChat(`An error occurred: ${error.message}`, 'ai'); }
+        }
+
+        function appendMessageToChat(text, sender, save = true, image = null, mimeType = null) {
+            if (save) { state.aiChatHistory.push({ text, sender, image, mimeType }); localStorage.setItem('aiChatHistory', JSON.stringify(state.aiChatHistory)); }
+            const chatBox = document.getElementById('ai-chat-box'); if (!chatBox) return;
+            const msgDiv = document.createElement('div');
+            let imageHTML = '';
+            if(image) {
+                imageHTML = `<img src="${image}" class="rounded-md w-32 h-32 object-cover mb-2 border">`;
+            }
+            msgDiv.innerHTML = imageHTML + text;
+            msgDiv.className = `${sender === 'user' ? 'user-message' : 'ai-message'} p-3 rounded-lg max-w-xl`; chatBox.appendChild(msgDiv); chatBox.scrollTop = chatBox.scrollHeight;
+        }
+        
+        async function identifyWeed(fileData, mimeType) {
+            if (!state.geminiApiKey) {
+                showToast('Gemini API key not set in Settings.', 'error');
+                return null;
+            }
+            try {
+                 const prompt = `Identify all distinct plants in this image. For each plant, provide the most likely scientific name, common names, and a confidence score from 0 to 1. Respond ONLY with a single minified JSON object in this exact format: {"results": [{"name": "PLANT_1_NAME", "commonNames": ["COMMON_NAME_1"], "confidence": 0.99}, {"name": "PLANT_2_NAME", "commonNames": ["COMMON_NAME_2"], "confidence": 0.95}]}`;
+                 const payload = {
+                    contents: [{
+                        parts: [
+                            { text: prompt },
+                            { inlineData: { mimeType: mimeType, data: fileData.split(',')[1] } }
+                        ]
+                    }]
+                };
+
+                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${state.geminiApiKey}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!response.ok) {
+                    const err = await response.json();
+                    throw new Error(err.error.message || 'Gemini API Error');
+                }
+                const result = await response.json();
+                const content = result.candidates[0].content.parts[0].text;
+                const jsonString = content.replace(/```json/g, '').replace(/```/g, '').trim();
+                const parsed = JSON.parse(jsonString);
+                return parsed.results || [];
+
+            } catch (error) {
+                console.error('Weed identification via Gemini failed:', error);
+                showToast(`Weed identification failed: ${error.message}`, 'error');
+                return [];
+            }
+        }
+        
+        const toBase64 = file => new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = error => reject(error);
+        });
+
+        async function handleWeedPhotoSelection(event) {
+            const files = event.target.files;
+            if (!files.length) return;
+
+             if (!state.geminiApiKey) {
+                return showToast('Please set your Gemini API key in Settings first.', 'error');
+            }
+
+            const trialId = event.target.dataset.trialId;
+            const trialIndex = state.trials.findIndex(t => t.ID === trialId);
+            if (trialIndex === -1) return showToast('Trial not found.', 'error');
+            
+            const trial = state.trials[trialIndex];
+            const grid = document.getElementById('weed-photo-grid');
+
+            for (const file of files) {
+                const tempId = `temp_${Date.now()}_${Math.random()}`;
+                
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const tempCard = document.createElement('div');
+                    tempCard.id = tempId;
+                    tempCard.className = 'border rounded-lg p-2 bg-white flex flex-col text-center relative';
+                    tempCard.innerHTML = `
+                        <img src="${e.target.result}" class="rounded-md w-full h-40 object-cover mb-2">
+                        <div class="mt-auto"><p class="text-sm text-gray-500 animate-pulse">Uploading & Identifying...</p></div>`;
+                    if(grid) grid.appendChild(tempCard);
+                };
+                reader.readAsDataURL(file);
+
+                (async () => {
+                    try {
+                        const fileData = await toBase64(file);
+
+                        const uploadPromise = apiCall('uploadPhoto', { fileData, fileName: file.name, mimeType: file.type }, false);
+                        const identificationPromise = identifyWeed(fileData, file.type);
+                        
+                        const [uploadedPhoto, identifications] = await Promise.all([uploadPromise, identificationPromise]);
+
+                        if (!uploadedPhoto || !uploadedPhoto.url) throw new Error('Photo upload failed.');
+                        
+                        let speciesUpdated = false;
+                        if (identifications && identifications.length > 0) {
+                            const currentSpecies = trial.WeedSpecies || '';
+                            const speciesSet = new Set(currentSpecies.split(',').map(s => s.trim()).filter(Boolean));
+                            const originalSize = speciesSet.size;
+
+                            identifications.forEach(id => {
+                                if (id && id.name && !speciesSet.has(id.name)) {
+                                    speciesSet.add(id.name);
+                                }
+                            });
+
+                            if (speciesSet.size > originalSize) {
+                                trial.WeedSpecies = Array.from(speciesSet).join(', ');
+                                speciesUpdated = true;
+                            }
+                        }
+
+                        const newWeedPhoto = { url: uploadedPhoto.url, identifications };
+                        const currentWeedPhotos = safeJsonParse(trial.WeedPhotosJSON);
+                        currentWeedPhotos.push(newWeedPhoto);
+                        trial.WeedPhotosJSON = JSON.stringify(currentWeedPhotos);
+                        
+                        state.trials[trialIndex] = { ...trial };
+                        
+                        const cardToUpdate = document.getElementById(tempId);
+                        if (grid) {
+                            const finalCardHTML = render.weedPhotoCard(newWeedPhoto, trialId, currentWeedPhotos.length - 1);
+                             if (cardToUpdate) {
+                                 cardToUpdate.outerHTML = finalCardHTML;
+                             } else {
+                                grid.innerHTML = safeJsonParse(trial.WeedPhotosJSON).map((p, index) => render.weedPhotoCard(p, trial.ID, index)).join('');
+                             }
+                        }
+                        
+                        const updateResult = await apiCall('updateTrialRecord', { id: trialId, WeedPhotosJSON: trial.WeedPhotosJSON, WeedSpecies: trial.WeedSpecies }, false);
+
+                        if(updateResult?.record && speciesUpdated) {
+                            showToast('Weed Species list updated with new identifications.', 'success');
+                        }
+
+
+                    } catch (error) {
+                        showToast(`Error processing photo: ${error.message}`, 'error');
+                        const failedCard = document.getElementById(tempId);
+                        if(failedCard) failedCard.remove();
+                    }
+                })();
+            }
+            event.target.value = '';
+        }
+
+        async function handleWeedPhotoDelete(trialId, index) {
+            const trialIndex = state.trials.findIndex(t => t.ID === trialId);
+            if (trialIndex === -1) return showToast('Trial not found.', 'error');
+            
+            const trial = state.trials[trialIndex];
+            const originalPhotos = safeJsonParse(trial.WeedPhotosJSON);
+            const newPhotos = originalPhotos.filter((_, i) => i !== index);
+            trial.WeedPhotosJSON = JSON.stringify(newPhotos);
+            state.trials[trialIndex] = { ...trial };
+
+            const grid = document.getElementById('weed-photo-grid');
+            if (grid) {
+                grid.innerHTML = newPhotos.map((p, idx) => render.weedPhotoCard(p, trialId, idx)).join('');
+            }
+            
+            showToast('Weed photo deleted. Syncing...');
+
+            const result = await apiCall('updateTrialRecord', { id: trialId, WeedPhotosJSON: trial.WeedPhotosJSON }, false);
+            if (!result || !result.record) {
+                showToast('Sync failed. Reverting.', 'error');
+                trial.WeedPhotosJSON = JSON.stringify(originalPhotos);
+                state.trials[trialIndex] = { ...trial };
+                if (grid) {
+                    grid.innerHTML = originalPhotos.map((p, idx) => render.weedPhotoCard(p, trialId, idx)).join('');
+                }
+            } else {
+                showToast('Sync complete.', 'success');
+                 if (state.currentPage === 'dashboard') {
+                    render.dashboard();
+                }
+            }
+        }
+        
+        async function handleFinalizeTrial(trialId) {
+            const trialIndex = state.trials.findIndex(t => t.ID === trialId);
+            if (trialIndex === -1) return showToast('Trial not found.', 'error');
+            
+            const trial = state.trials[trialIndex];
+            const duration = Math.floor((new Date() - new Date(trial.Date)) / (1000 * 60 * 60 * 24));
+            
+            showToast('Trial counting stopped. Syncing...');
+
+            try {
+                const payload = { 
+                    id: trialId, 
+                    ControlFinalized: true,
+                    FinalControlDuration: duration < 0 ? 0 : duration,
+                    FinalizationDate: new Date().toISOString()
+                };
+
+                const result = await apiCall('updateTrialRecord', payload, false);
+                if (!result || !result.record) throw new Error("Server sync failed.");
+
+                // The server response is now reliable.
+                state.trials[trialIndex] = result.record;
+                
+                showToast('Sync complete!', 'success');
+
+            } catch (error) {
+                showToast(`Error: ${error.message}.`, 'error');
+            } finally {
+                switchPage(state.currentPage);
+            }
+        }
+
+        async function handleRestartTrial(trialId) {
+            const trialIndex = state.trials.findIndex(t => t.ID === trialId);
+            if (trialIndex === -1) return showToast('Trial not found.', 'error');
+
+            showToast('Trial counting restarted. Syncing...');
+
+            try {
+                const payload = {
+                    id: trialId,
+                    ControlFinalized: false,
+                    FinalControlDuration: null,
+                    FinalizationDate: null
+                };
+
+                const result = await apiCall('updateTrialRecord', payload, false);
+                if (!result || !result.record) throw new Error("Server sync failed.");
+
+                // The server response is now reliable.
+                state.trials[trialIndex] = result.record;
+
+                showToast('Sync complete!', 'success');
+            } catch (error) {
+                showToast(`Error: ${error.message}.`, 'error');
+            } finally {
+                switchPage(state.currentPage);
+            }
+        }
+
+        async function handleToggleCompleted(trialId, isChecked) {
+            const trialIndex = state.trials.findIndex(t => t.ID === trialId);
+            if (trialIndex === -1) return;
+
+            showToast(`Trial status updated. Syncing...`);
+
+            try {
+                const result = await apiCall('updateTrialRecord', { id: trialId, IsCompleted: isChecked }, false);
+                if (!result || !result.record) throw new Error("Server sync failed.");
+                
+                state.trials[trialIndex] = result.record;
+            } catch (error) {
+                showToast(`Error: ${error.message}.`, 'error');
+            } finally {
+                switchPage(state.currentPage);
+            }
+        }
+
+
+        function bindEventListeners() {
+            document.getElementById('sidebar-nav').addEventListener('click', e => { 
+                const target = e.target.closest('a');
+                if (target && target.dataset.page) { 
+                    e.preventDefault(); 
+                    switchPage(target.dataset.page); 
+                } 
+            });
+
+            document.body.addEventListener('click', e => {
+                const target = e.target.closest('[data-action]');
+                if (!target) return;
+
+                if (['edit', 'delete', 'duplicate'].includes(target.dataset.action) || target.dataset.action.startsWith('export')) {
+                    e.stopPropagation();
+                }
+
+                const { action, type, id, index, sort, trialId, photoIndex } = target.dataset;
+
+                const actions = {
+                    openModal: () => handleOpenModal(type),
+                    'open-weed-modal': () => handleOpenModal('weedId', id),
+                    'open-organise-modal': () => openModal('organise'),
+                    'get-location': () => { const form = document.getElementById('trial-form'); if (form) { getGeoLocation(coords => { form.querySelector('[name="location"]').value = `${coords.lat.toFixed(5)}, ${coords.lon.toFixed(5)}`; showToast('Location captured!', 'success'); }); } },
+                    'fetch-weather': fetchWeatherForTrialDate,
+                    edit: () => handleEdit(type, id),
+                    delete: () => handleDelete(type, id),
+                    duplicate: () => handleDuplicateItem(type, id),
+                    'finalize-trial': () => handleFinalizeTrial(id),
+                    'restart-trial': () => handleRestartTrial(id),
+                    'delete-weed-photo': () => handleWeedPhotoDelete(trialId, parseInt(index, 10)),
+                    'view-trial': () => openTrialDetail(id),
+                    'sort-trials': () => applyFilters({ sortBy: sort }),
+                    'export-pdf-with-ingredients': () => generateTrialPdf(id, { withIngredients: true }),
+                    'export-pdf-without-ingredients': () => generateTrialPdf(id, { withIngredients: false }),
+                    'export-pdf-weeds-with-ingredients': () => generateTrialPdf(id, { withWeeds: true, withIngredients: true }),
+                    'export-pdf-weeds-without-ingredients': () => generateTrialPdf(id, { withWeeds: true, withIngredients: false }),
+                    'export-ppt': () => exportToPpt(id),
+                    'export-json': exportJson,
+                    'export-zip': exportWithPhotos,
+                    'export-standalone': exportStandaloneHTML,
+                    'import-data': handleImport,
+                    'clear-data': () => clearAllData(true),
+                    'force-reload': () => { showToast('Clearing cache & reloading...', 'success'); localStorage.clear(); setTimeout(() => window.location.reload(true), 1500); },
+                    'add-ingredient-row': addFormulationIngredientRow,
+                    'apply-bulk-add': handleBulkIngredients,
+                    'apply-bulk-add-cost': handleBulkIngredientsCost,
+                    'close-modal': closeModal,
+                    'cancel-crop': closeCropper,
+                    'crop-image': cropAndSaveImage,
+                    'rotate-left': () => { if (cropper) cropper.rotate(-90); },
+                    'rotate-right': () => { if (cropper) cropper.rotate(90); },
+                    'open-camera': () => openCamera(),
+                    'quick-open-camera': () => openCamera(id),
+                    'open-weed-camera': () => openCamera(trialId),
+                    'close-camera': closeCamera,
+                    'capture-photo': capturePhoto,
+                    'remove-ingredient-row': () => { target.closest('.formulation-ingredient-row').remove(); updateFormulationCost(); },
+                    'remove-photo': () => { state.croppedPhotosData.splice(index, 1); updatePhotoPreview(); },
+                    'reset-data-sources': () => { localStorage.removeItem('appSettings'); loadSettings(); showToast('Data sources reset.', 'success'); initializeApp(); },
+                    'open-photo-edit-modal': () => handleOpenPhotoEditModal(trialId, photoIndex),
+                    'attach-ai-image': () => document.getElementById('ai-image-input').click(),
+                    'remove-ai-image': () => {
+                        state.aiAttachedImage = { fileData: null, mimeType: null };
+                        document.getElementById('ai-image-preview-container').style.display = 'none';
+                        document.getElementById('ai-image-input').value = '';
+                    },
+                    'clear-chat': () => {
+                        showConfirmation('Clear Chat History?', 'This will permanently delete the conversation.', () => {
+                            state.aiChatHistory = [];
+                            localStorage.removeItem('aiChatHistory');
+                            const chatBox = document.getElementById('ai-chat-box');
+                            if (chatBox) chatBox.innerHTML = '';
+                            appendMessageToChat('Hello! Ask me a question.', 'ai', false);
+                            showToast('Chat history cleared.');
+                        });
+                    }
+                };
+
+                const handler = actions[action];
+                if (handler) {
+                    e.preventDefault();
+                    handler();
+                }
+            });
+
+            document.body.addEventListener('input', e => {
+                const target = e.target;
+                 if (target.id === 'import-file-input') document.querySelector('[data-action="import-data"]').disabled = !target.files.length;
+                if (target.matches('[data-action="filter"]')) applyFilters();
+                if (target.matches('[data-action="select-trial"]')) {
+                    const { id } = target.dataset; if (target.checked) { if (!state.selectedTrials.includes(id)) state.selectedTrials.push(id); } else { state.selectedTrials = state.selectedTrials.filter(trialId => trialId !== id); }
+                    updateOrganiseBar();
+                }
+                if (target.id === 'trial-photos') handlePhotoSelection(e);
+                if (target.matches('.photo-label-input')) state.croppedPhotosData[target.dataset.index].label = target.value;
+                if (target.closest('#formulation-form')) updateFormulationCost();
+            });
+            document.body.addEventListener('change', async e => {
+                const target = e.target;
+                if (target.matches('[data-action="update-result"]')) {
+                    const { id } = target.dataset; const newResult = target.value; const trialIndex = state.trials.findIndex(t => t.ID === id); if (trialIndex === -1) return; const originalResult = state.trials[trialIndex].Result;
+                    state.trials[trialIndex].Result = newResult;
+                    
+                    const result = await apiCall('updateTrialRecord', { id, Result: newResult }, false);
+                    if (result && result.record) {
+                         const idx = state.trials.findIndex(t => t.ID === result.record.ID);
+                         if (idx > -1) state.trials[idx] = result.record;
+                         showToast('Result updated!', 'success'); 
+                         if (state.currentPage === 'dashboard') {
+                             render.dashboard();
+                         }
+                    } else { 
+                        showToast('Failed to update result.', 'error');
+                        state.trials[trialIndex].Result = originalResult;
+                        target.value = originalResult; 
+                        target.className = `result-select result-${(originalResult || 'none').toLowerCase()}`;
+                    }
+                }
+                if (target.matches('[data-action="toggle-completed"]')) {
+                    handleToggleCompleted(target.dataset.id, target.checked);
+                }
+                if (target.matches('[data-action="quick-add-photo"]')) {
+                    if (target.files.length > 0) { state.currentTrialIdForCamera = target.dataset.id; state.photoQueue = [...target.files]; processPhotoQueue(); }
+                    target.value = '';
+                }
+                 if (target.id === 'weed-photos-input') {
+                    handleWeedPhotoSelection(e);
+                }
+                 if (target.id === 'ai-image-input') {
+                    const file = target.files[0];
+                    if (file) {
+                        const reader = new FileReader();
+                        reader.onload = (e) => {
+                            state.aiAttachedImage = { fileData: e.target.result, mimeType: file.type };
+                            document.getElementById('ai-image-preview').src = e.target.result;
+                            document.getElementById('ai-image-preview-container').style.display = 'block';
+                        };
+                        reader.readAsDataURL(file);
+                    }
+                }
+            });
+            document.body.addEventListener('submit', e => { e.preventDefault(); handleFormSubmit(e.target); });
+        }
+        
+        function normalizeIDs(dataArray) { return Array.isArray(dataArray) ? dataArray.map(item => ({ ...item, ID: String(item.ID || ''), FormulationID: String(item.FormulationID || '') })) : []; }
+        
+        function loadSettings() {
+            const settings = localStorage.getItem('appSettings');
+            state.settings = settings ? JSON.parse(settings) : { 
+                scriptUrl: DEFAULT_SCRIPT_URL, 
+                sheetId: '1EyBz5fcfHvTtBtSBbAPrivweUDMknFKdvEp1zDQ89II', 
+                folderId: '14UTh_QWhCRoaQ0JvfKeg7LZvOGZRF_rT' 
+            };
+            state.geminiApiKey = localStorage.getItem('geminiApiKey') || 'AIzaSyBCqB9_qqEehIQjOostYu9Y6WQTOJD2WkI';
+            const chat = localStorage.getItem('aiChatHistory');
+            state.aiChatHistory = chat ? JSON.parse(chat) : [];
+        }
+        
+        function handleDataSourceSave(form) {
+            const scriptUrl = form.querySelector('#script-url').value.trim();
+            const sheetId = (form.querySelector('#sheet-url').value.trim().match(/spreadsheets\/d\/([a-zA-Z0-9-_]+)/) || [])[1] || null;
+            const folderId = (form.querySelector('#folder-url').value.trim().match(/folders\/([a-zA-Z0-9-_]+)/) || [])[1] || null;
+            if(!scriptUrl) return showToast('Apps Script URL is required.', 'error');
+            state.settings = { scriptUrl, sheetId, folderId };
+            localStorage.setItem('appSettings', JSON.stringify(state.settings));
+            showToast('Data sources saved! Reloading app...');
+            setTimeout(() => initializeApp(), 1000);
+        }
+
+        async function initializeApp(showOverlay = true) {
+            if(window.__EMBEDDED_STATE__) {
+                state = window.__EMBEDDED_STATE__;
+                showToast('Loaded data from standalone file.', 'success');
+                switchPage(state.currentPage || 'dashboard');
+                window.apiCall = async (action, payload) => { 
+                    console.log('API calls disabled in standalone mode.', {action, payload});
+                    showToast('Functionality limited in offline mode.', 'error');
+                    return null;
+                }
+                return;
+            }
+
+            if(showOverlay) loadingOverlay.classList.remove('hidden');
+            try {
+                loadSettings();
+                const allData = await apiCall('getAllData', {}, false);
+                if (allData === null) {
+                    mainContent.innerHTML = `<div class="text-center p-8 bg-white rounded-lg shadow"><p class="text-red-500 font-semibold">Could not load app data.</p><p class="text-gray-600 mt-2">Check your connection and Data Source settings.</p></div>`;
+                    return;
+                }
+                state.ingredients = normalizeIDs(allData.ingredients);
+                state.formulations = normalizeIDs(allData.formulations);
+                state.trials = (allData.trials || []).map(t => ({
+                    ...normalizeIDs([t])[0], 
+                    WeedPhotosJSON: t.WeedPhotosJSON || '[]',
+                    IsCompleted: t.IsCompleted || false 
+                }));
+                state.organisations = normalizeIDs(allData.organisations);
+                switchPage(state.currentPage || 'dashboard');
+            } catch (error) {
+                console.error("Initialization failed:", error);
+                mainContent.innerHTML = `<div class="text-center p-8 bg-white rounded-lg shadow"><p class="text-red-500 font-semibold">A critical error occurred.</p><p class="text-gray-600 mt-2">Please check the console and refresh.</p></div>`;
+            } finally {
+                if(showOverlay) loadingOverlay.classList.add('hidden');
+                lucide.createIcons();
+            }
+        }
+        
+        function handleOpenPhotoEditModal(trialId, photoIndex) {
+            const trial = state.trials.find(t => t.ID === trialId);
+            if (!trial) return;
+            const photos = safeJsonParse(trial.PhotoURLs);
+            const photoData = photos[photoIndex];
+            if (!photoData) return;
+
+            openModal('photoEdit', true);
+            setTimeout(() => {
+                const form = document.getElementById('photo-edit-form');
+                form.querySelector('[name="trialId"]').value = trialId;
+                form.querySelector('[name="photoIndex"]').value = photoIndex;
+                form.querySelector('[name="label"]').value = photoData.label || '';
+                form.querySelector('[name="date"]').value = photoData.date || '';
+                if(photoData.weather) {
+                    form.querySelector('[name="temp"]').value = photoData.weather.temp || '';
+                    form.querySelector('[name="humidity"]').value = photoData.weather.humidity || '';
+                    form.querySelector('[name="wind"]').value = photoData.weather.wind || '';
+                    form.querySelector('[name="rain"]').value = photoData.weather.rain || '';
+                }
+                form.querySelector('[name="date"]').addEventListener('change', async (e) => {
+                    const newDate = e.target.value;
+                    const location = trial.Location;
+                    if (!location || !newDate) return;
+                    const coords = await resolveLocationToCoords(location);
+                    if (!coords) return showToast('Trial location is not valid for weather fetching.', 'error');
+                    const weatherResult = await fetchWeather(coords.lat, coords.lon, newDate);
+                     if (weatherResult && weatherResult.data) {
+                        const weather = weatherResult.data;
+                        form.querySelector('[name="temp"]').value = weather.temp;
+                        form.querySelector('[name="humidity"]').value = weather.humidity;
+                        form.querySelector('[name="wind"]').value = weather.wind;
+                        form.querySelector('[name="rain"]').value = weather.rain;
+                        showToast('Weather updated for new date.', 'success');
+                    } else {
+                        showToast(weatherResult.error || 'Could not fetch weather for new date.', 'error');
+                    }
+                });
+            }, 50);
+        }
+
+        async function handlePhotoEditSubmit(form) {
+            const formData = new FormData(form);
+            const trialId = formData.get('trialId');
+            const photoIndex = parseInt(formData.get('photoIndex'), 10);
+            const trialIndex = state.trials.findIndex(t => t.ID === trialId);
+
+            if (trialIndex === -1 || isNaN(photoIndex)) return showToast('Error saving photo details.', 'error');
+            
+            const trial = state.trials[trialIndex];
+            const photos = safeJsonParse(trial.PhotoURLs);
+            const originalPhotoData = photos[photoIndex];
+
+            photos[photoIndex] = {
+                ...originalPhotoData,
+                label: formData.get('label'),
+                date: formData.get('date'),
+                weather: {
+                    temp: formData.get('temp'),
+                    humidity: formData.get('humidity'),
+                    wind: formData.get('wind'),
+                    rain: formData.get('rain')
+                }
+            };
+            
+            trial.PhotoURLs = JSON.stringify(photos);
+            state.trials[trialIndex] = trial;
+
+            closeModal();
+            openTrialDetail(trialId);
+            showToast('Photo details updated. Syncing...');
+
+            apiCall('updateTrialRecord', { id: trialId, PhotoURLs: trial.PhotoURLs }, false).then(result => {
+                if(!result || !result.record) {
+                    showToast('Sync failed. Please try saving the main trial again.', 'error');
+                } else {
+                    showToast('Sync complete!', 'success');
+                     if (state.currentPage === 'dashboard') {
+                        render.dashboard();
+                    }
+                }
+            });
+        }
+
+
+        bindEventListeners();
+        initializeApp();
+    });
+    </script>
+</body>
+</html>
+
