@@ -97,7 +97,7 @@
 <body class="antialiased">
     <!-- CONFIGURATION -->
     <script>
-        const DEFAULT_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz1sjCUNHIApYaBzFsRER4MV9OEClo09_yteHnBfq-60KlG1UB8-m0Lz2cJTvyixQxnUA/exec';
+        const DEFAULT_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwKz8olJPTelalIu841QLnXPjLJ2VGlvyXVwTGXNDReMC-dTp-yNhEbDqoOcU47nWAY/exec';
         const CURRENCY_SYMBOL = '₹';
     </script>
     
@@ -186,13 +186,14 @@
             photoQueue: [], 
             croppedPhotosData: [], 
             currentTrialIdForCamera: null,
+            cameraMode: 'general', // Add this line to track camera's purpose
             geminiApiKey: 'AIzaSyBCqB9_qqEehIQjOostYu9Y6WQTOJD2WkI',
             aiChatHistory: [],
             aiAttachedImage: { fileData: null, mimeType: null },
             isSettingsLocked: true,
             settings: {
                 scriptUrl: DEFAULT_SCRIPT_URL,
-                sheetId: '19lqihTQ9SLuuVJJiOtoy8ukfbXMeEZwwB0PjHAMDyPc',
+                sheetId: '1eZsdySZMlFGfFNCFoNeo7hy818hLJ2JvmSSxCitRcBk',
                 folderId: '14UTh_QWhCRoaQ0JvfKeg7LZvOGZRF_rT'
             },
             charts: {}
@@ -1378,15 +1379,108 @@
             }
             
             const photoData = { fileData: croppedImageData, fileName: `cropped_${Date.now()}.jpg`, mimeType: 'image/jpeg', label: '', date: photoDate, weather };
+            
             if (state.currentTrialIdForCamera) {
-                const trialId = state.currentTrialIdForCamera; 
+                const trialId = state.currentTrialIdForCamera;
                 closeCropper(); 
-                await handleQuickPhotoAdd(trialId, [photoData]);
+
+                if (state.cameraMode === 'weed') {
+                    // Call the new handler for weed identification
+                    await handleWeedPhotoFromCamera(trialId, photoData);
+                } else { // 'general' or default
+                    // This is the original logic for adding a general photo
+                    await handleQuickPhotoAdd(trialId, [photoData]);
+                }
             } else {
-                state.croppedPhotosData.push(photoData); updatePhotoPreview(); closeCropper();
+                // This part is for adding photos inside the main trial creation/edit form
+                state.croppedPhotosData.push(photoData);
+                updatePhotoPreview();
+                closeCropper();
             }
+            // Reset the camera mode to default after use
+            state.cameraMode = 'general';
         }
 
+        async function handleWeedPhotoFromCamera(trialId, photoData) {
+            if (!state.geminiApiKey) {
+                return showToast('Please set your Gemini API key in Settings first.', 'error');
+            }
+
+            const trialIndex = state.trials.findIndex(t => t.ID === trialId);
+            if (trialIndex === -1) return showToast('Trial not found.', 'error');
+            const trial = state.trials[trialIndex];
+            const grid = document.getElementById('weed-photo-grid');
+
+            // Show a temporary card while processing
+            const tempId = `temp_${Date.now()}`;
+            const tempCard = document.createElement('div');
+            tempCard.id = tempId;
+            tempCard.className = 'border rounded-lg p-2 bg-white flex flex-col text-center relative';
+            tempCard.innerHTML = `
+                <img src="${photoData.fileData}" class="rounded-md w-full h-40 object-cover mb-2">
+                <div class="mt-auto"><p class="text-sm text-gray-500 animate-pulse">Uploading & Identifying...</p></div>`;
+            if(grid) grid.appendChild(tempCard);
+
+            try {
+                const uploadPromise = apiCall('uploadPhoto', { 
+                    fileData: photoData.fileData, 
+                    fileName: `camera_${Date.now()}.jpg`, 
+                    mimeType: photoData.mimeType 
+                }, false);
+
+                const identificationPromise = identifyWeed(photoData.fileData, photoData.mimeType);
+                
+                const [uploadedPhoto, identifications] = await Promise.all([uploadPromise, identificationPromise]);
+
+                if (!uploadedPhoto || !uploadedPhoto.url) throw new Error('Photo upload failed.');
+                
+                let speciesUpdated = false;
+                if (identifications && identifications.length > 0) {
+                    const currentSpecies = trial.WeedSpecies || '';
+                    const speciesSet = new Set(currentSpecies.split(',').map(s => s.trim()).filter(Boolean));
+                    const originalSize = speciesSet.size;
+                    identifications.forEach(id => {
+                        if (id && id.name && !speciesSet.has(id.name)) {
+                            speciesSet.add(id.name);
+                        }
+                    });
+                    if (speciesSet.size > originalSize) {
+                        trial.WeedSpecies = Array.from(speciesSet).join(', ');
+                        speciesUpdated = true;
+                    }
+                }
+
+                const newWeedPhoto = { url: uploadedPhoto.url, identifications };
+                const currentWeedPhotos = safeJsonParse(trial.WeedPhotosJSON);
+                currentWeedPhotos.push(newWeedPhoto);
+                trial.WeedPhotosJSON = JSON.stringify(currentWeedPhotos);
+                
+                state.trials[trialIndex] = { ...trial };
+                
+                const cardToUpdate = document.getElementById(tempId);
+                if (grid) {
+                    const finalCardHTML = render.weedPhotoCard(newWeedPhoto, trialId, currentWeedPhotos.length - 1);
+                    if (cardToUpdate) {
+                        cardToUpdate.outerHTML = finalCardHTML;
+                    }
+                }
+                
+                const updateResult = await apiCall('updateTrialRecord', { 
+                    id: trialId, 
+                    WeedPhotosJSON: trial.WeedPhotosJSON, 
+                    WeedSpecies: trial.WeedSpecies 
+                }, false);
+
+                if(updateResult?.record && speciesUpdated) {
+                    showToast('Weed Species list updated with new identifications.', 'success');
+                }
+
+            } catch (error) {
+                showToast(`Error processing camera photo: ${error.message}`, 'error');
+                const failedCard = document.getElementById(tempId);
+                if(failedCard) failedCard.remove();
+            }
+        }
 
         function closeCropper() { if(cropper) cropper.destroy(); cropper = null; cropperModal.style.display = 'none'; if (state.photoQueue.length > 0) processPhotoQueue(); else { state.currentTrialIdForCamera = null; } }
         
@@ -2421,7 +2515,6 @@ ${organisationsContext.length > 0 ? organisationsContext : 'No organisation data
             }
         }
 
-
         function bindEventListeners() {
             document.getElementById('sidebar-nav').addEventListener('click', e => { 
                 const target = e.target.closest('a');
@@ -2430,7 +2523,6 @@ ${organisationsContext.length > 0 ? organisationsContext : 'No organisation data
                     switchPage(target.dataset.page); 
                 } 
             });
-
             document.body.addEventListener('click', e => {
                 const target = e.target.closest('[data-action]');
                 if (!target) return;
@@ -2475,8 +2567,8 @@ ${organisationsContext.length > 0 ? organisationsContext : 'No organisation data
                     'rotate-left': () => { if (cropper) cropper.rotate(-90); },
                     'rotate-right': () => { if (cropper) cropper.rotate(90); },
                     'open-camera': () => openCamera(),
-                    'quick-open-camera': () => openCamera(id),
-                    'open-weed-camera': () => openCamera(trialId),
+                    'quick-open-camera': () => { state.cameraMode = 'general'; openCamera(id); },
+                    'open-weed-camera': () => { state.cameraMode = 'weed'; openCamera(trialId); },
                     'close-camera': closeCamera,
                     'capture-photo': capturePhoto,
                     'remove-ingredient-row': () => { target.closest('.formulation-ingredient-row').remove(); updateFormulationCost(); },
@@ -2722,3 +2814,4 @@ ${organisationsContext.length > 0 ? organisationsContext : 'No organisation data
     </script>
 </body>
 </html>
+
