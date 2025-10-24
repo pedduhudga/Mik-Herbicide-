@@ -1149,7 +1149,7 @@
                     const index = state[type + 's'].findIndex(item => item.ID === id);
                     if (index > -1) state[type + 's'][index] = { ...state[type + 's'][index], ...optimisticRecord };
                 } else {
-                    state[type + 's'].push(optimisticRecord);
+                    state[type + 's'].unshift(optimisticRecord);
                 }
 
                 closeModal();
@@ -2712,6 +2712,8 @@ ${organisationsContext.length > 0 ? organisationsContext : 'No organisation data
                     WeedPhotosJSON: t.WeedPhotosJSON || '[]',
                     IsCompleted: t.IsCompleted || false 
                 }));
+                // Sort trials by date, newest first, for consistent ordering
+                state.trials.sort((a, b) => new Date(b.Date) - new Date(a.Date));
                 state.organisations = normalizeIDs(allData.organisations);
                 switchPage(state.currentPage || 'dashboard');
             } catch (error) {
