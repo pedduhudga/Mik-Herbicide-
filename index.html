@@ -97,7 +97,7 @@
 <body class="antialiased">
     <!-- CONFIGURATION -->
     <script>
-        const DEFAULT_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwKz8olJPTelalIu841QLnXPjLJ2VGlvyXVwTGXNDReMC-dTp-yNhEbDqoOcU47nWAY/exec';
+        const DEFAULT_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz1sjCUNHIApYaBzFsRER4MV9OEClo09_yteHnBfq-60KlG1UB8-m0Lz2cJTvyixQxnUA/exec';
         const CURRENCY_SYMBOL = '₹';
     </script>
     
@@ -2697,26 +2697,30 @@ ${organisationsContext.length > 0 ? organisationsContext : 'No organisation data
                 return;
             }
 
-            if(showOverlay) loadingOverlay.classList.remove('hidden');
-            try {
-                loadSettings();
-                const allData = await apiCall('getAllData', {}, false);
-                if (allData === null) {
-                    mainContent.innerHTML = `<div class="text-center p-8 bg-white rounded-lg shadow"><p class="text-red-500 font-semibold">Could not load app data.</p><p class="text-gray-600 mt-2">Check your connection and Data Source settings.</p></div>`;
-                    return;
-                }
-                state.ingredients = normalizeIDs(allData.ingredients);
-                state.formulations = normalizeIDs(allData.formulations);
-                state.trials = (allData.trials || []).map(t => ({
-                    ...normalizeIDs([t])[0], 
-                    WeedPhotosJSON: t.WeedPhotosJSON || '[]',
-                    IsCompleted: t.IsCompleted || false 
-                }));
-                // Sort trials by date, newest first, for consistent ordering
-                state.trials.sort((a, b) => new Date(b.Date) - new Date(a.Date));
-                state.organisations = normalizeIDs(allData.organisations);
-                switchPage(state.currentPage || 'dashboard');
-            } catch (error) {
+           if(showOverlay) loadingOverlay.classList.remove('hidden');
+        try {
+            loadSettings();
+            const allData = await apiCall('getAllData', {}, false);
+            if (allData === null) {
+                mainContent.innerHTML = `<div class="text-center p-8 bg-white rounded-lg shadow"><p class="text-red-500 font-semibold">Could not load app data.</p><p class="text-gray-600 mt-2">Check your connection and Data Source settings.</p></div>`;
+                return;
+            }
+            state.ingredients = normalizeIDs(allData.ingredients);
+            state.formulations = normalizeIDs(allData.formulations);
+
+            // Sort formulations by new timestamp, newest first
+            state.formulations.sort((a, b) => new Date(b.CreatedAt || 0) - new Date(a.CreatedAt || 0));
+
+            state.trials = (allData.trials || []).map(t => ({
+                ...normalizeIDs([t])[0], 
+                WeedPhotosJSON: t.WeedPhotosJSON || '[]',
+                IsCompleted: t.IsCompleted || false 
+            }));
+            // Sort trials by date, newest first, for consistent ordering
+            state.trials.sort((a, b) => new Date(b.Date) - new Date(a.Date));
+            state.organisations = normalizeIDs(allData.organisations);
+            switchPage(state.currentPage || 'dashboard');
+        } catch (error) {
                 console.error("Initialization failed:", error);
                 mainContent.innerHTML = `<div class="text-center p-8 bg-white rounded-lg shadow"><p class="text-red-500 font-semibold">A critical error occurred.</p><p class="text-gray-600 mt-2">Please check the console and refresh.</p></div>`;
             } finally {
